@@ -16,7 +16,7 @@ What the live data shows (measured 2026-11-05, re-measured continuously by the d
 
 - **Portaldot V3 finalizes in about 12 seconds** (finality lag ~2 blocks × 6s blocks).
 - Ethereum Sepolia needs **~15 minutes** (lag ~70 blocks × 12s).
-- Base Sepolia produces blocks every **0.2s** (Flashblocks) — the fastest block time here — yet its finalized head trails by ~6,500 blocks, about **20+ minutes** to finality.
+- Base Sepolia produces blocks every **0.2s** (Flashblocks) — the fastest block time here — yet its finalized head trails by roughly 4,300–6,500 blocks, about **15–23 minutes** to finality.
 - Sepolia's gas price is the lowest of the four.
 - Polygon Amoy finalizes through Heimdall checkpoints rather than the EVM `finalized` tag; ChainLens reports its finality as **n/a** instead of the fake "0 seconds" the tag would imply.
 

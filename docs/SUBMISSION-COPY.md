@@ -24,7 +24,7 @@ Node.js, JavaScript, Ethereum JSON-RPC API, Substrate JSON-RPC API, HTML/CSS
 **What the live data shows** (measured 2026-11-05, re-measured on every poll):
 - Portaldot V3 finalizes in about 12 seconds (finality lag ~2 blocks at 6-second blocks).
 - Ethereum Sepolia requires about 15 minutes (lag ~70 blocks).
-- Base Sepolia produces the fastest blocks at every 0.2 seconds (Flashblocks), yet its finalized head trails by ~6,500 blocks — over 20 minutes to finality. Fastest blocks, slow finality.
+- Base Sepolia produces the fastest blocks at every 0.2 seconds (Flashblocks), yet its finalized head trails by roughly 4,300–6,500 blocks — about 15–23 minutes to finality. Fastest blocks, slow finality.
 - Sepolia's gas price is the lowest of the four.
 - Polygon Amoy finalizes through Heimdall checkpoints, not the EVM finalized tag. ChainLens reports its finality as n/a rather than the misleading "0 seconds" the tag suggests.
 

@@ -21,7 +21,7 @@ One live screen. Four testnets. Measured, not claimed.
 Time to finality:
 - Portaldot V3: ~12 seconds (lag ~2 blocks × 6s)
 - Ethereum Sepolia: ~15 minutes (lag ~70 blocks × 12s)
-- Base Sepolia: ~20+ minutes (lag ~6,500 blocks × 0.2s)
+- Base Sepolia: ~15–23 minutes (lag ~4,300–6,500 blocks × 0.2s)
 - Polygon Amoy: n/a — checkpoint finality (see slide 6)
 Base makes a block every 0.2 seconds — and still takes 100x longer than Portaldot to finalize. Fastest blocks ≠ fastest finality.
 
