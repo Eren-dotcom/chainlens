@@ -14,7 +14,8 @@ Every chain markets block time. Users wait for finality.
 ## Slide 3 — Solution
 One live screen. Four testnets. Measured, not claimed.
 - Portaldot V3, Ethereum Sepolia, Base Sepolia, Polygon Amoy, polled in parallel every 12 seconds.
-- Block time, finality lag, gas price, endpoint reliability, and a live blocks-produced race.
+- Block time, finality lag, gas price, endpoint reliability, block contents and RPC latency — plus session statistics (min / average / p95 finality).
+- The Finality Race, a settlement ticker, history charts, a wait calculator ("how long until it's final?", answered from measured p95), a verify-it-yourself raw sampler, and embeddable live finality badges.
 - Read-only by design: no wallet, no keys, no transactions. Zero dependencies.
 
 ## Slide 4 — The headline finding (measured live, 2026-11-05)
@@ -29,7 +30,7 @@ Base makes a block every 0.2 seconds — and still takes 100x longer than Portal
 - Zero-dependency Node.js poller; per-chain parallel sampling with retry/backoff.
 - EVM: eth_getBlockByNumber (latest + finalized tag), eth_gasPrice.
 - Portaldot dual-stack: Substrate chain_getHeader + chain_getFinalizedHead cross-check the EVM finalized view — two independent reads of the same finality.
-- Dashboard + JSON APIs (/api/status, /api/history); serverless mode samples per request.
+- Dashboard + JSON APIs (/api/status with session stats, /api/history, /api/metrics, /api/badge.svg, /api/sample, /api/history.csv); serverless mode samples per request.
 
 ## Slide 6 — Honest measurement (the ChainLens difference)
 - Block time measured between consecutive live samples: some chains cluster block timestamps, and historical windows misread them (verified against a 100-block on-chain window).
@@ -43,8 +44,8 @@ Base makes a block every 0.2 seconds — and still takes 100x longer than Portal
 
 ## Slide 8 — Roadmap
 - More networks (mainnets and further testnets) behind the same metric definitions.
-- Historical finality charts and regression alerts when a chain's finality degrades.
-- A public per-chain health API for wallets and bridges to consume.
+- Regression alerts when a chain's finality degrades, and persistent long-window history.
+- Wider adoption of the chainlens-metrics/1 document by wallets and bridges.
 
 ## Slide 9 — Links
 - GitHub: https://github.com/Eren-dotcom/chainlens

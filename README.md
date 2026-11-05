@@ -28,13 +28,26 @@ Every metric is defined precisely in [docs/METHODOLOGY.md](docs/METHODOLOGY.md) 
 
 ## What it measures, per chain
 
-- **Block height** and **blocks produced since the monitor started** (the live "race")
+- **Block height** and **blocks produced since the monitor started**
 - **Block time** — measured between ChainLens's own consecutive samples. Some chains cluster block timestamps, which makes historical-window averages lie (a 20-block window reads Base's clustered timestamps wrong); real-time height/timestamp deltas are honest everywhere. Verified against a 100-block on-chain window on 2026-11-05.
 - **Finality lag** — latest head minus finalized head, in blocks and in estimated seconds (lag × that chain's own measured block time)
 - **Gas price** — RPC-reported, in wei
-- **Endpoint reliability** — share of successful polls per chain since the monitor started; dropped requests are retried with backoff before a poll counts as failed
+- **Block contents** — transactions in the latest block and its gas used
+- **Endpoint reliability and latency** — share of successful polls per chain since the monitor started, and each sample's RPC round-trip time; dropped requests are retried with backoff before a poll counts as failed
+- **Session statistics** — per-chain min / average / p95 / max finality across the session, so a single lucky sample can't carry the story
 
 Verdicts at the top of the dashboard (fastest finality / fastest block time / lowest gas) are computed from the measured values on every sample — not hardcoded.
+
+## What the dashboard does
+
+- **The Finality Race** — four lanes on a log scale, markers set by each chain's measured time-to-finality; a lane pulses every time its chain finalizes a new block. Fastest blocks and fastest finality stop looking like the same thing.
+- **Settlement ticker** — a live wire of real finalization events as ChainLens observes them.
+- **Chain instruments with a detail drawer** — click any chain for its session min/avg/p95 finality, reliability, latency, endpoint, chain ID and lag-history sparkline (Portaldot's drawer includes the Substrate cross-check).
+- **Session charts** — finality-over-time (with a log-scale toggle) and gas-over-time, drawn from the live sample history.
+- **Live block feed** — the latest block observed per poll: height, transactions, gas used, latency.
+- **Wait Calculator** — pick a chain and a use case (quick payment ×1, NFT mint ×1.5, bridge transfer ×2, exchange deposit ×3) and ChainLens answers "how long until it's final?" from the session's measured p95 finality times the safety margin — the number a builder actually ships with.
+- **Verify it yourself** — one click takes a fresh sample straight from a chain's public RPC and shows the raw values next to the numbers ChainLens computed from them.
+- **Embeddable badges and export** — a live SVG finality badge per chain (`/api/badge.svg`) for READMEs and docs, an iframe embed of the whole observatory, and one-click CSV/JSON export of the sample history.
 
 ## Run it
 
@@ -47,7 +60,7 @@ npm run smoke      # live smoke test against all four chains
 
 Requires Node.js ≥ 18. No `npm install` needed — there are no dependencies.
 
-APIs: `GET /api/status` (latest comparison + verdicts), `GET /api/history?n=50` (recent samples), and `GET /api/metrics` — the stable, versioned metrics document (`chainlens-metrics/1`) that other tools can consume and cite; see "Adopt this spec" in the methodology.
+APIs: `GET /api/status` (latest comparison + verdicts + session `stats`), `GET /api/history?n=50` (recent samples), `GET /api/metrics` — the stable, versioned metrics document (`chainlens-metrics/1`) that other tools can consume and cite; see "Adopt this spec" in the methodology — plus `GET /api/badge.svg?chain=portaldot` (live embeddable finality badge), `GET /api/sample?chain=base` (one fresh on-demand sample with the raw RPC values, for verification), and `GET /api/history.csv` (the full sample history as CSV).
 
 Real sample from `GET /api/metrics`, captured 2026-11-05 and trimmed to one chain — run it yourself and compare:
 
@@ -73,11 +86,15 @@ Every RPC endpoint can be overridden by environment variable (`PORTALDOT_RPC`, `
 ```
 src/rpc.js      JSON-RPC client with retry/backoff; terminal errors fail fast
 src/chains.js   the four watched chains (Portaldot carries a Substrate endpoint too)
-src/metrics.js  pure metric math — block time, finality lag/seconds, verdict picker (unit-tested)
-src/poller.js   parallel multi-chain sampler; per-chain reliability + race counters;
-                Portaldot finality cross-checked via Substrate headers
-src/server.js   dashboard + /api/status + /api/history
-public/         the comparison dashboard (verdict strip, finality chart, chain cards)
+src/metrics.js  pure metric math — block time, finality lag/seconds, verdict picker,
+                session statistics (min/avg/p95), badge + CSV formatters (unit-tested)
+src/poller.js   parallel multi-chain sampler; per-chain reliability, latency and
+                block contents; Portaldot finality cross-checked via Substrate headers
+src/server.js   dashboard + /api/status + /api/history + /api/badge.svg +
+                /api/sample + /api/history.csv
+public/         the observatory console (finality race, settlement ticker, chain
+                instruments + detail drawer, session charts, block feed, wait
+                calculator, verify panel, embed badges)
 ```
 
 On serverless hosting the poller runs per request instead of on a timer, so the public demo takes a fresh live sample on each API call; block time there is computed against the previous request's observation when available.
