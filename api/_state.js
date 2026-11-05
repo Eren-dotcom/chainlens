@@ -32,3 +32,11 @@ export async function sampleOnce() {
   }
   return p;
 }
+
+// Shared responder for the API routes: sample once (queued), then shape
+// the poller state. One place for the cache rule.
+export async function respond(res, shape) {
+  const p = await sampleOnce();
+  res.setHeader('cache-control', 'no-store');
+  res.status(200).json(shape(p));
+}
