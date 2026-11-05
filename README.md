@@ -91,9 +91,13 @@ On serverless hosting the poller runs per request instead of on a timer, so the 
 | Base Sepolia | 84532 | comparison |
 | Polygon Amoy | 80002 | comparison (finality n/a — checkpoint-based) |
 
+## Anchoring: FinalityAnchor
+
+The observatory's write path is `FinalityAnchor` (`contracts/FinalityAnchor.sol`, compiled bytecode and ABI alongside it): a small contract that stores ChainLens finality snapshots on Portaldot V3 itself, so anyone can later verify what ChainLens measured and when. Its deployment is currently blocked by a Portaldot V3 platform gate — the operator account was funded with 500 tPOT by the Portaldot team, but the funds sit in the chain's revive fallback account and cannot pay transaction fees until the account is mapped, which this runtime does not let an Ethereum-style key do for itself. The full evidence — signed transaction hashes, the runtime's own call table, the exact errors — is in [docs/ANCHOR-STATUS.md](docs/ANCHOR-STATUS.md). The contract deploys the day the gate opens; no address is claimed until a deployment transaction actually lands.
+
 ## Limitation
 
-ChainLens is a live-data observatory, not a deployed smart contract: it connects to Portaldot V3 testnet only by reading its EVM and Substrate RPCs in real time. It holds no keys and needs no funds. That is the design, stated plainly: ChainLens measures finality; it does not participate in it.
+ChainLens the observatory is read-only by design: it reads the four testnets' EVM and Substrate RPCs in real time, holds no keys, and needs no funds to measure. The one thing it cannot yet do is write its measurements back to Portaldot — that is the FinalityAnchor gate documented above, stated plainly rather than papered over.
 
 ## License
 

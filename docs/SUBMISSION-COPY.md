@@ -32,9 +32,11 @@ Node.js, JavaScript, Ethereum JSON-RPC API, Substrate JSON-RPC API, HTML/CSS
 
 **How to run it.** Run `npm start` to launch the dashboard and JSON APIs on http://localhost:4178. Use `npm run once` to print a single comparison sample, `npm test` for metric unit tests, and `npm run smoke` for a live four-chain smoke test. Requires Node.js ≥ 18; no install step needed.
 
+**On-chain anchoring (FinalityAnchor).** ChainLens also ships a write path: `FinalityAnchor`, a small contract (source + compiled bytecode in the repo) that stores ChainLens finality snapshots on Portaldot V3 itself, turning measurements into permanent, checkable records. Its deployment is currently blocked by a Portaldot platform gate, documented with transaction-level evidence in docs/ANCHOR-STATUS.md: the Portaldot team funded our operator account with 500 tPOT, but the funds sit in the chain's revive fallback account and cannot pay fees until the account is mapped — a step this runtime does not let an Ethereum-style key perform for itself (the chain's own EVM RPC fails on the account identically). We publish the evidence rather than a claim: the contract deploys the day the gate opens.
+
 **Why it helps Portaldot.** Builders deciding where to deploy can see Portaldot V3 finalize faster than established testnets on the metric that matters most for user experience: seconds, not minutes. The data is live and reproducible. It also provides a neutral measuring stick for the ecosystem: ChainLens will report accurately if another chain wins.
 
-**Limitation.** ChainLens is a live-data observatory, not a deployed smart contract. It connects to the Portaldot V3 testnet only by reading its EVM and Substrate RPCs in real time.
+**Limitation.** The ChainLens observatory is read-only by design; its companion contract FinalityAnchor is written and compiled but not yet deployed, for the documented platform reason above (docs/ANCHOR-STATUS.md). No contract address is claimed.
 
 ## Track
 Multi-Chain & Cross-Chain Infra
