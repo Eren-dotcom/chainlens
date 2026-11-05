@@ -68,6 +68,20 @@ values (chains with a failed sample or a null metric are skipped). They are neve
 if another chain wins a category, the dashboard says so. (On 2026-11-05 samples: Base Sepolia won
 block time, Sepolia won gas, Portaldot V3 won finality.)
 
+## Adopt this spec
+
+These definitions are free for any tool, dashboard, wallet or bridge to adopt — that is what they
+are for. To adopt them:
+
+- **Cite** the definitions as "ChainLens methodology, `chainlens-metrics/1`" and link this page.
+- **Consume** the live reference data at `GET /api/metrics` on any ChainLens deployment: a stable,
+  versioned JSON document (`spec: "chainlens-metrics/1"`) carrying every metric defined above,
+  including `finalitySkew` and per-chain `reliabilityPct`. If the definitions ever change, the spec
+  version increments; `chainlens-metrics/1` will keep meaning exactly this.
+- **Send back** what you find: if a chain's RPC behavior breaks a definition here (a new timestamp
+  quirk, a misleading tag), open an issue in the ChainLens repository with the chain, the call and
+  the raw response. Corrections get credited in this document's history.
+
 ## Who this serves
 
 Bridge and multi-chain teams verifying finality assumptions before deploying; builders choosing

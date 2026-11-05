@@ -41,7 +41,7 @@ npm run smoke      # live smoke test against all four chains
 
 Requires Node.js ≥ 18. No `npm install` needed — there are no dependencies.
 
-APIs: `GET /api/status` (latest comparison + verdicts), `GET /api/history?n=50` (recent samples).
+APIs: `GET /api/status` (latest comparison + verdicts), `GET /api/history?n=50` (recent samples), and `GET /api/metrics` — the stable, versioned metrics document (`chainlens-metrics/1`) that other tools can consume and cite; see "Adopt this spec" in the methodology.
 
 Every RPC endpoint can be overridden by environment variable (`PORTALDOT_RPC`, `PORTALDOT_SUBSTRATE_RPC`, `SEPOLIA_RPC`, `BASE_RPC`, `AMOY_RPC`); `PORT` and `POLL_MS` configure the server and poll interval (default 12s).
 
@@ -70,7 +70,7 @@ On serverless hosting the poller runs per request instead of on a timer, so the 
 
 ## Limitation
 
-ChainLens is a live-data observatory, not a deployed smart contract: it integrates Portaldot V3 testnet by reading its EVM and Substrate RPCs in real time. It holds no keys and needs no funds — that is the design, stated plainly.
+ChainLens is a live-data observatory, not a deployed smart contract: it connects to Portaldot V3 testnet only by reading its EVM and Substrate RPCs in real time. It holds no keys and needs no funds — that is the design, stated plainly.
 
 ## License
 

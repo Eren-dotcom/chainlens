@@ -24,6 +24,34 @@ export function finalitySeconds(lagBlocks, blockTimeSec) {
   return Math.round(lagBlocks * blockTimeSec);
 }
 
+// Shape a sample into the stable, versioned, machine-readable metrics
+// document served at /api/metrics — the artifact other tools can consume
+// and the concrete thing "adopt this spec" points at. A null sample yields
+// the empty skeleton (same shape, no chains yet).
+export function shapeMetrics(sample) {
+  const doc = {
+    spec: 'chainlens-metrics/1',
+    methodology: 'https://github.com/Eren-dotcom/chainlens/blob/main/docs/METHODOLOGY.md',
+    generatedAt: sample ? sample.ts : null,
+    chains: {},
+    substrate: sample ? sample.substrate : null,
+    winners: sample ? sample.winners : null,
+  };
+  if (!sample) return doc;
+  for (const [key, c] of Object.entries(sample.chains)) {
+    doc.chains[key] = {
+      name: c.name, chainId: c.chainId, ok: c.ok,
+      height: c.height, blockTimeSec: c.blockTimeSec,
+      finalizedHeight: c.finalizedHeight,
+      finalityLagBlocks: c.finalityLagBlocks, finalitySec: c.finalitySec,
+      finalitySkew: c.finalitySkew ?? null,
+      gasWei: c.gasWei, reliabilityPct: c.reliabilityPct,
+      finalityNote: c.finalityNote || null,
+    };
+  }
+  return doc;
+}
+
 // Pick the winning chain per category from a { key: chainSample } map.
 // Chains with ok=false or a null metric are skipped. Ties keep the first.
 export function pickWinners(chains) {

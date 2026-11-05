@@ -1,6 +1,6 @@
 // Offline unit tests for the metric math. Run: npm test
 import assert from 'node:assert';
-import { blockTimeFromWindow, finalityLag, finalitySeconds, pickWinners } from '../src/metrics.js';
+import { blockTimeFromWindow, finalityLag, finalitySeconds, pickWinners, shapeMetrics } from '../src/metrics.js';
 import { hexToInt } from '../src/rpc.js';
 
 // hexToInt: strict quantity parsing — null (never NaN) for malformed input
@@ -55,5 +55,21 @@ assert.equal(nanW.fastestBlockTime.chain, 'second');
 assert.equal(nanW.lowestGas.chain, 'second');
 assert.equal(pickWinners({}).fastestFinality, null);
 assert.equal(pickWinners({ x: { ok: true, blockTimeSec: null, finalitySec: null, gasWei: null } }).lowestGas, null);
+
+// shapeMetrics: the /api/metrics document keeps a stable, adoptable shape
+const skel = shapeMetrics(null);
+assert.equal(skel.spec, 'chainlens-metrics/1');
+assert.deepEqual(skel.chains, {});
+assert.equal(skel.generatedAt, null);
+const shaped = shapeMetrics({
+  ts: '2026-11-05T00:00:00.000Z',
+  chains: { a: { name: 'A', chainId: 1, ok: true, height: 10, blockTimeSec: 6, finalizedHeight: 8, finalityLagBlocks: 2, finalitySec: 12, finalitySkew: false, gasWei: 100, reliabilityPct: 100, finalityNote: null, error: null, blocksSinceStart: 3 } },
+  substrate: { ok: true, latest: 10, finalized: 8, lagBlocks: 2 },
+  winners: { fastestFinality: { chain: 'a', value: 12 } },
+});
+assert.equal(shaped.chains.a.finalitySec, 12);
+assert.equal(shaped.chains.a.finalitySkew, false);
+assert.equal('error' in shaped.chains.a, false); // internal fields are not published
+assert.equal(shaped.winners.fastestFinality.chain, 'a');
 
 console.log('unit tests: PASS');

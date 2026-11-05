@@ -12,7 +12,31 @@ infrastructure instead of building it, in a track where bridges hold deployed-co
 **Top-3 in track: unlikely.** Realistic best case 4th–6th with a strong honesty/engineering reputation;
 Community Choice is again the more winnable prize.
 
-**Actions Muse took from this review:**
+---
+
+## Round 2 (2026-11-05, after the fixes)
+
+**Re-score: 56–63 / 100** (Technical 14–17, Innovation 19–22, Ecosystem 11–14, Business 11–13) —
+up 4–5 points; "4th–6th is now the realistic center, not the optimistic edge"; Community Choice
+probability "improved meaningfully." Remaining top actions: (1) the tPOT extrinsic, still
+faucet-dependent; (2) the real screencast demo — already the plan; (3) an "adopt this spec"
+call-to-action plus a machine-readable metrics endpoint.
+
+**Weakest claim flagged:** the verb "integrates" in "it integrates the Portaldot V3 testnet" —
+reads as deployment. **Strongest line:** "ChainLens refuses to print a number it cannot defend."
+
+**Actions Muse took from round 2:**
+- "Integrates" wording removed everywhere (README, submission copy, organizer field) in favor of
+  the precise claim: connects only by reading live RPCs.
+- `GET /api/metrics` shipped: the stable `chainlens-metrics/1` document (local server + serverless),
+  unit-tested, plus an "Adopt this spec" section in the methodology (citation format, endpoint,
+  send-back path, versioning promise).
+- Note for the record: DeepSeek's round-2 text says "no new code shipped — the fixes are docs and
+  framing," which contradicts its own Technical row crediting chain-ID verification and the
+  finalitySkew flag — both are code, shipped in the GLM round. It scored from the documents it was
+  given; the code gains are real but were outside its reading set.
+
+**Actions Muse took from this review (round 1):**
 - Priority 2 (methodology as a spec) → `docs/METHODOLOGY.md` written and linked from the README.
 - Priority 3 (name the Portaldot V3 capability) → the methodology doc and README now state it plainly: the observatory probes Portaldot V3's dual EVM + Substrate architecture by cross-checking finality on both stacks, and serves bridge teams verifying finality assumptions before deploying.
 - Priority 5 (one concrete integration path) → README roadmap line added.

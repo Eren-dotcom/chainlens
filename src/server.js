@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { Poller } from './poller.js';
+import { shapeMetrics } from './metrics.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const portRaw = Number(process.env.PORT || 4178);
@@ -26,6 +27,7 @@ function sendJson(res, code, obj) {
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/api/status') return sendJson(res, 200, poller.status());
+  if (url.pathname === '/api/metrics') return sendJson(res, 200, shapeMetrics(poller.latest));
   if (url.pathname === '/api/history') {
     const nRaw = Number(url.searchParams.get('n') ?? 50);
     const n = Number.isFinite(nRaw) ? Math.min(200, Math.max(1, Math.floor(nRaw))) : 50;

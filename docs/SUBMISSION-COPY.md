@@ -34,13 +34,13 @@ Node.js, JavaScript, Ethereum JSON-RPC API, Substrate JSON-RPC API, HTML/CSS
 
 **Why it helps Portaldot.** Builders deciding where to deploy can see Portaldot V3 finalize faster than established testnets on the metric that matters most for user experience: seconds, not minutes. The data is live and reproducible. It also provides a neutral measuring stick for the ecosystem: ChainLens will report accurately if another chain wins.
 
-**Limitation.** ChainLens is a live-data observatory, not a deployed smart contract. It integrates the Portaldot V3 testnet by reading its EVM and Substrate RPCs in real time.
+**Limitation.** ChainLens is a live-data observatory, not a deployed smart contract. It connects to the Portaldot V3 testnet only by reading its EVM and Substrate RPCs in real time.
 
 ## Track
 Multi-Chain & Cross-Chain Infra
 
 ## Testnet integration (organizer field, honesty rule)
-Read-only observatory with no contract deployment. It integrates the Portaldot V3 testnet via live EVM and Substrate RPC reads (chain ID 420420777), compared against Ethereum Sepolia, Base Sepolia, and Polygon Amoy public RPCs.
+Read-only observatory with no contract deployment. It reads the Portaldot V3 testnet live via EVM and Substrate RPC (chain ID 420420777), compared against Ethereum Sepolia, Base Sepolia, and Polygon Amoy public RPCs.
 
 ## Looking for teammates
 No (solo participant).
