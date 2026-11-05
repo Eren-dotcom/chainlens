@@ -31,7 +31,7 @@ export async function rpcCall(url, method, params = [], timeoutMs = 6000, attemp
         throw err;
       }
       const body = await res.json();
-      if (body.error) throw terminal(new Error(`${method}: ${body.error.message || 'rpc error'}`));
+      if (body.error) throw terminal(new Error(`${method}: ${String(body.error.message || 'rpc error')}`));
       return body.result;
     } catch (e) {
       if (e.terminal) throw e;
@@ -46,4 +46,13 @@ export async function rpcCall(url, method, params = [], timeoutMs = 6000, attemp
   throw lastErr;
 }
 
-export const hexToInt = (h) => (typeof h === 'string' ? parseInt(h, 16) : h);
+// Parse an RPC quantity. Returns null — never NaN — for anything that is
+// not a well-formed 0x-hex string or a finite number, so a malformed field
+// degrades to "no data" downstream instead of poisoning the metric math
+// (NaN comparisons are always false and would slip past every guard).
+// BigInt parsing avoids float precision loss on large wei values.
+export const hexToInt = (h) => {
+  if (typeof h === 'number') return Number.isFinite(h) ? h : null;
+  if (typeof h !== 'string' || !/^0x[0-9a-fA-F]+$/.test(h)) return null;
+  return Number(BigInt(h));
+};

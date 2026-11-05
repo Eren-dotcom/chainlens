@@ -16,7 +16,10 @@ export function finalityLag(latest, finalized) {
 }
 
 // Estimated seconds until a block finalizes: lag in blocks x block time.
+// A chain whose finalized head has caught up (lag 0) finalizes in 0 seconds
+// by definition — that answer does not need a measured block time.
 export function finalitySeconds(lagBlocks, blockTimeSec) {
+  if (lagBlocks === 0) return 0;
   if (lagBlocks == null || blockTimeSec == null) return null;
   return Math.round(lagBlocks * blockTimeSec);
 }
@@ -29,7 +32,7 @@ export function pickWinners(chains) {
     for (const [key, c] of Object.entries(chains)) {
       if (!c || !c.ok) continue;
       const v = get(c);
-      if (v == null) continue;
+      if (v == null || !Number.isFinite(v)) continue; // a NaN would block every later candidate
       if (!winner || v < winner.value) winner = { chain: key, value: v };
     }
     return winner;

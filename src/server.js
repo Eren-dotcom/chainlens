@@ -10,7 +10,12 @@ const portRaw = Number(process.env.PORT || 4178);
 const PORT = Number.isFinite(portRaw) && portRaw > 0 && portRaw < 65536 ? portRaw : 4178;
 
 const poller = new Poller().start();
-const indexHtml = await readFile(join(__dirname, '..', 'public', 'index.html'), 'utf8');
+let indexHtml;
+try {
+  indexHtml = await readFile(join(__dirname, '..', 'public', 'index.html'), 'utf8');
+} catch {
+  indexHtml = '<!doctype html><title>ChainLens</title><h1>ChainLens dashboard file missing</h1><p>The JSON APIs at /api/status and /api/history are unaffected.</p>';
+}
 
 function sendJson(res, code, obj) {
   const body = JSON.stringify(obj); // stringify before writeHead: a throw here must not half-send

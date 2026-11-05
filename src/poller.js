@@ -30,19 +30,35 @@ async function sampleEvmChain(cfg, prev) {
     finalityNote: cfg.finalityNote || null,
   };
   try {
-    const latest = await rpcCall(cfg.rpc, 'eth_getBlockByNumber', ['latest', false]);
-    if (!latest) throw new Error('latest block not found');
-    out.height = hexToInt(latest.number);
-    const ts = hexToInt(latest.timestamp);
-    out._obs = { height: out.height, timestamp: ts };
-    if (prev) out.blockTimeSec = blockTimeFromWindow(out._obs, prev);
-    const [finalized, gas] = await Promise.all([
+    // One parallel batch: the finalized head must be read at the same
+    // moment as the latest head, or the lag between them is understated.
+    const [latest, finalized, gas, chainIdHex] = await Promise.all([
+      rpcCall(cfg.rpc, 'eth_getBlockByNumber', ['latest', false]),
       cfg.finalityTag === false
         ? Promise.resolve(undefined)
         : rpcCall(cfg.rpc, 'eth_getBlockByNumber', ['finalized', false]).catch(() => null),
       rpcCall(cfg.rpc, 'eth_gasPrice', []).catch(() => null),
+      rpcCall(cfg.rpc, 'eth_chainId', []).catch(() => null),
     ]);
+    if (!latest) throw new Error('latest block not found');
+    out.height = hexToInt(latest.number);
+    const ts = hexToInt(latest.timestamp);
+    if (out.height == null || ts == null) throw new Error('malformed latest block');
+    // Identity check: an endpoint that answers for a different chain must
+    // never be displayed under this chain's name — the worst failure an
+    // observatory can have. A failed chainId read just skips the check.
+    if (chainIdHex != null) {
+      const reported = hexToInt(chainIdHex);
+      if (reported != null && reported !== cfg.chainId) {
+        throw new Error(`chain ID mismatch: endpoint reports ${reported}, expected ${cfg.chainId}`);
+      }
+    }
+    out._obs = { height: out.height, timestamp: ts };
+    if (prev) out.blockTimeSec = blockTimeFromWindow(out._obs, prev);
     if (finalized) out.finalizedHeight = hexToInt(finalized.number);
+    // A finalized head ahead of the latest head means the reads came from
+    // skewed backends; the lag clamps to 0 for display, the skew is flagged.
+    out.finalitySkew = out.finalizedHeight != null && out.finalizedHeight > out.height;
     out.finalityLagBlocks = finalityLag(out.height, out.finalizedHeight);
     out.finalitySec = finalitySeconds(out.finalityLagBlocks, out.blockTimeSec);
     out.gasWei = gas != null ? hexToInt(gas) : null;
@@ -86,8 +102,25 @@ export class Poller {
     for (const c of cfg.chains) this.stats[c.key] = { ok: 0, total: 0 };
   }
 
+  // Sampling self-queues: concurrent callers (timer + serverless requests)
+  // share one in-flight round instead of interleaving on shared state.
   async sample() {
-    const results = await Promise.all(this.cfg.chains.map((c) => sampleEvmChain(c, this.prevObs[c.key])));
+    if (this._inflight) return this._inflight;
+    const run = this._doSample();
+    this._inflight = run;
+    try {
+      return await run;
+    } finally {
+      if (this._inflight === run) this._inflight = null;
+    }
+  }
+
+  async _doSample() {
+    const pdCfg = this.cfg.chains.find((c) => c.key === 'portaldot');
+    const [results, substrate] = await Promise.all([
+      Promise.all(this.cfg.chains.map((c) => sampleEvmChain(c, this.prevObs[c.key]))),
+      pdCfg ? sampleSubstrate(pdCfg) : Promise.resolve(null),
+    ]);
     const chains = {};
     for (const r of results) {
       const st = this.stats[r.key];
@@ -95,7 +128,7 @@ export class Poller {
       if (r.ok) {
         st.ok += 1;
         if (this.firstHeight[r.key] == null) this.firstHeight[r.key] = r.height;
-        r.blocksSinceStart = r.height - this.firstHeight[r.key];
+        r.blocksSinceStart = Math.max(0, r.height - this.firstHeight[r.key]);
         // Only advance the observation point forwards: a load-balanced RPC
         // can answer with a stale or one-block-behind head, and letting the
         // reference point move backwards would corrupt the next interval.
@@ -112,13 +145,18 @@ export class Poller {
           r.blockTimeSec = this.lastBlockTime[r.key];
           r.finalitySec = finalitySeconds(r.finalityLagBlocks, r.blockTimeSec);
         }
+      } else {
+        // A failed round invalidates the observation point: the next
+        // successful rate must span a fresh interval, not the outage gap.
+        delete this.prevObs[r.key];
       }
       delete r._obs;
       r.reliabilityPct = st.total ? +((st.ok / st.total) * 100).toFixed(1) : null;
       chains[r.key] = r;
     }
-    const pd = this.cfg.chains.find((c) => c.key === 'portaldot');
-    const substrate = pd ? await sampleSubstrate(pd) : null;
+    if (substrate && substrate.ok && chains.portaldot?.finalityLagBlocks != null) {
+      substrate.agrees = Math.abs(chains.portaldot.finalityLagBlocks - substrate.lagBlocks) <= 1;
+    }
     const sample = {
       ts: new Date().toISOString(),
       chains,

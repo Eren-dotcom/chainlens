@@ -44,6 +44,13 @@ On the first sample after a monitor starts, block time is null — one observati
   number it cannot defend, and labels the metric n/a with the reason, on the dashboard and here.
   Checkpoint-based finality is on the order of minutes.
 
+All four heads (latest, finalized, gas, chain ID) are read in one parallel batch so the lag is not
+understated by sequential reads. If a load-balanced backend ever returns a finalized head ahead of
+the latest head, the displayed lag clamps to 0 and the sample is flagged `finalitySkew: true` in
+the API rather than hiding the inconsistency. Each sample also verifies the endpoint's
+`eth_chainId` against the chain it claims to be; a mismatch fails the sample with a
+"chain ID mismatch" error instead of displaying another network's data under a false name.
+
 ## Gas price
 
 The RPC-reported `eth_gasPrice` at sample time, displayed in wei, unconverted and unaveraged.
