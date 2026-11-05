@@ -4,7 +4,7 @@
 
 Built for Portaldot Hacker House 2026, Multi-Chain & Cross-Chain Infra track. Zero dependencies, read-only by design: ChainLens never signs and never sends a transaction — it only reads.
 
-**Live demo:** (Vercel URL — fill in after deploy) · **Demo video:** (YouTube URL — fill in after upload) · **Pitch deck:** [docs/PITCH-DECK.md](docs/PITCH-DECK.md)
+**Live demo:** https://chainlens-five.vercel.app · **Demo video:** (YouTube URL — fill in after upload) · **Pitch deck:** [docs/PITCH-DECK.md](docs/PITCH-DECK.md)
 
 ![ChainLens dashboard — live comparison across four testnets](docs/dashboard.webp)
 

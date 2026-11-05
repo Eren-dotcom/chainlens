@@ -11,7 +11,7 @@ Node.js, JavaScript, Ethereum JSON-RPC API, Substrate JSON-RPC API, HTML/CSS
 
 ## Links
 - GitHub: https://github.com/Eren-dotcom/chainlens
-- Live demo: (Vercel URL — fill in after deploy)
+- Live demo: https://chainlens-five.vercel.app
 - Demo video: (YouTube URL — fill in after upload)
 - Pitch deck: https://github.com/Eren-dotcom/chainlens/blob/main/docs/PITCH-DECK.md
 
