@@ -4,6 +4,10 @@
 
 Built for Portaldot Hacker House 2026, Multi-Chain & Cross-Chain Infra track. Zero dependencies, read-only by design: ChainLens never signs and never sends a transaction — it only reads.
 
+**Live demo:** (Vercel URL — fill in after deploy) · **Demo video:** (YouTube URL — fill in after upload) · **Pitch deck:** [docs/PITCH-DECK.md](docs/PITCH-DECK.md)
+
+![ChainLens dashboard — live comparison across four testnets](docs/dashboard.png)
+
 ## Why this exists
 
 Every chain claims to be fast. ChainLens measures instead of claims. It polls four testnets side by side and answers the question users and builders actually care about — **how long until my block is final?** — with live numbers on one screen.
@@ -16,7 +20,9 @@ What the live data shows (measured 2026-11-05, re-measured continuously by the d
 - Sepolia's gas price is the lowest of the four.
 - Polygon Amoy finalizes through Heimdall checkpoints rather than the EVM `finalized` tag; ChainLens reports its finality as **n/a** instead of the fake "0 seconds" the tag would imply.
 
-Portaldot's finality is also **cross-checked two ways**: the EVM `finalized` tag and the native Substrate finalized head, shown side by side on the dashboard. That cross-check is only possible because of Portaldot V3's dual EVM + Substrate architecture — ChainLens puts that V3 feature to work as a verification method, and it is built for the people who need these numbers most: bridge and multi-chain teams verifying finality assumptions before they deploy.
+## Verified two ways — Portaldot's dual stack
+
+Portaldot's finality is **cross-checked two ways on every sample**: the EVM `finalized` tag and the native Substrate finalized head, polled in parallel and shown side by side on the dashboard with an explicit agreement flag (the two stacks must agree within one block, or the sample says so). That cross-check is only possible because of Portaldot V3's dual EVM + Substrate architecture — ChainLens puts that V3 feature to work as a verification method, and it is built for the people who need these numbers most: bridge and multi-chain teams verifying finality assumptions before they deploy.
 
 Every metric is defined precisely in [docs/METHODOLOGY.md](docs/METHODOLOGY.md) — the measurement spec is part of the product, written to be reused and audited.
 
@@ -42,6 +48,23 @@ npm run smoke      # live smoke test against all four chains
 Requires Node.js ≥ 18. No `npm install` needed — there are no dependencies.
 
 APIs: `GET /api/status` (latest comparison + verdicts), `GET /api/history?n=50` (recent samples), and `GET /api/metrics` — the stable, versioned metrics document (`chainlens-metrics/1`) that other tools can consume and cite; see "Adopt this spec" in the methodology.
+
+Real sample from `GET /api/metrics`, captured 2026-11-05 and trimmed to one chain — run it yourself and compare:
+
+```json
+{
+  "spec": "chainlens-metrics/1",
+  "generatedAt": "2026-11-05T08:29:32.458Z",
+  "chains": {
+    "portaldot": {
+      "name": "Portaldot V3 Testnet", "chainId": 420420777, "ok": true,
+      "height": 332217, "blockTimeSec": 6,
+      "finalizedHeight": 332215, "finalityLagBlocks": 2, "finalitySec": 12,
+      "finalitySkew": false, "gasWei": 21790, "reliabilityPct": 100
+    }
+  }
+}
+```
 
 Every RPC endpoint can be overridden by environment variable (`PORTALDOT_RPC`, `PORTALDOT_SUBSTRATE_RPC`, `SEPOLIA_RPC`, `BASE_RPC`, `AMOY_RPC`); `PORT` and `POLL_MS` configure the server and poll interval (default 12s).
 
@@ -70,7 +93,7 @@ On serverless hosting the poller runs per request instead of on a timer, so the 
 
 ## Limitation
 
-ChainLens is a live-data observatory, not a deployed smart contract: it connects to Portaldot V3 testnet only by reading its EVM and Substrate RPCs in real time. It holds no keys and needs no funds — that is the design, stated plainly.
+ChainLens is a live-data observatory, not a deployed smart contract: it connects to Portaldot V3 testnet only by reading its EVM and Substrate RPCs in real time. It holds no keys and needs no funds. That is the design, stated plainly: ChainLens measures finality; it does not participate in it.
 
 ## License
 

@@ -4,7 +4,7 @@
 ChainLens
 
 ## Tagline / Brief
-Live cross-chain finality observatory: Portaldot V3 vs. Sepolia, Base Sepolia, and Polygon Amoy.
+Live cross-chain finality observatory: Portaldot V3 vs. Ethereum Sepolia, Base Sepolia, and Polygon Amoy.
 
 ## Built with
 Node.js, JavaScript, Ethereum JSON-RPC API, Substrate JSON-RPC API, HTML/CSS
@@ -28,7 +28,7 @@ Node.js, JavaScript, Ethereum JSON-RPC API, Substrate JSON-RPC API, HTML/CSS
 - Sepolia's gas price is the lowest of the four.
 - Polygon Amoy finalizes through Heimdall checkpoints, not the EVM finalized tag. ChainLens reports its finality as n/a rather than the misleading "0 seconds" the tag suggests.
 
-**How it works.** A zero-dependency Node.js poller samples every chain in parallel using `eth_getBlockByNumber` (latest + `finalized`) and `eth_gasPrice`. For Portaldot, it also uses the Substrate calls `chain_getHeader` and `chain_getFinalizedHead`, cross-checking finality across both stacks of its dual architecture. Block time is measured between consecutive samples, as some chains cluster timestamps, causing historical windows to misread them. The verdict strip (fastest finality / block time / gas) is computed from measured values on every sample and is never hardcoded. If an endpoint drops requests, the chain degrades gracefully, and its reliability percentage reflects the drop.
+**How it works.** A zero-dependency Node.js poller samples every chain in parallel using `eth_getBlockByNumber` (latest + `finalized`) and `eth_gasPrice`. For Portaldot, it also uses the Substrate calls `chain_getHeader` and `chain_getFinalizedHead`, cross-checking finality across both stacks of its dual architecture. Block time is measured between consecutive samples, as some chains cluster timestamps, causing historical windows to misread them. The verdict strip (fastest finality / block time / gas) is computed from measured values on every sample and is never hardcoded. If an endpoint drops requests, the chain degrades gracefully, and its reliability percentage reflects the drop. Every metric is defined in docs/METHODOLOGY.md in the repository, and the live numbers are also served as a versioned JSON document (GET /api/metrics, spec chainlens-metrics/1) for other tools to consume.
 
 **How to run it.** Run `npm start` to launch the dashboard and JSON APIs on http://localhost:4178. Use `npm run once` to print a single comparison sample, `npm test` for metric unit tests, and `npm run smoke` for a live four-chain smoke test. Requires Node.js ≥ 18; no install step needed.
 
