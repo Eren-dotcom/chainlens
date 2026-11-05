@@ -21,7 +21,10 @@ export const CHAINS = [
     chainId: 11155111,
     rpc: process.env.SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com',
     network: 'testnet',
-    endpoints: [process.env.SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com', 'https://rpc.sepolia.org'],
+    // Race secondary is Tenderly's public gateway: rpc.sepolia.org stopped
+    // answering entirely (verified 2026-11-05 from two networks — TLS
+    // connects, no HTTP response ever arrives). Their side, not ours.
+    endpoints: [process.env.SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com', 'https://sepolia.gateway.tenderly.co'],
   },
   {
     key: 'base',
@@ -39,7 +42,10 @@ export const CHAINS = [
     chainId: 80002,
     rpc: process.env.AMOY_RPC || 'https://polygon-amoy-bor-rpc.publicnode.com',
     network: 'testnet',
-    endpoints: [process.env.AMOY_RPC || 'https://polygon-amoy-bor-rpc.publicnode.com', 'https://rpc-amoy.polygon.technology'],
+    // Race secondary is dRPC: rpc-amoy.polygon.technology stopped answering
+    // entirely (verified 2026-11-05 from two networks, same failure shape
+    // as rpc.sepolia.org). Their side, not ours.
+    endpoints: [process.env.AMOY_RPC || 'https://polygon-amoy-bor-rpc.publicnode.com', 'https://polygon-amoy.drpc.org'],
     // Bor finalizes through Heimdall checkpoints, not the EVM 'finalized'
     // tag — the tag just echoes the latest block there, which would fake a
     // 0-second finality. ChainLens reports finality as n/a for Amoy instead.
