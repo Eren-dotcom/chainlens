@@ -82,6 +82,7 @@ export class Poller {
     this.stats = {}; // key -> { ok, total }
     this.firstHeight = {}; // key -> height at first successful sample
     this.prevObs = {}; // key -> last { height, timestamp } for block-time math
+    this.lastBlockTime = {}; // key -> last measured block time (carry-forward, below)
     for (const c of cfg.chains) this.stats[c.key] = { ok: 0, total: 0 };
   }
 
@@ -95,7 +96,22 @@ export class Poller {
         st.ok += 1;
         if (this.firstHeight[r.key] == null) this.firstHeight[r.key] = r.height;
         r.blocksSinceStart = r.height - this.firstHeight[r.key];
-        if (r._obs) this.prevObs[r.key] = r._obs;
+        // Only advance the observation point forwards: a load-balanced RPC
+        // can answer with a stale or one-block-behind head, and letting the
+        // reference point move backwards would corrupt the next interval.
+        if (r._obs && (!this.prevObs[r.key] || r._obs.height > this.prevObs[r.key].height)) {
+          this.prevObs[r.key] = r._obs;
+        }
+        // Carry-forward: if this interval produced no new block on a slow
+        // chain (Sepolia's 12s blocks vs 12s polls), the fresh rate is null
+        // for one sample. Reuse the last measured rate so the dashboard
+        // doesn't flicker; the next interval spans the gap and self-heals.
+        if (r.blockTimeSec != null) {
+          this.lastBlockTime[r.key] = r.blockTimeSec;
+        } else if (this.lastBlockTime[r.key] != null) {
+          r.blockTimeSec = this.lastBlockTime[r.key];
+          r.finalitySec = finalitySeconds(r.finalityLagBlocks, r.blockTimeSec);
+        }
       }
       delete r._obs;
       r.reliabilityPct = st.total ? +((st.ok / st.total) * 100).toFixed(1) : null;
