@@ -4,13 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ChainLens — Live Cross-Chain Finality Observatory</title>
+<meta name="description" content="ChainLens measures time-to-finality live across Portaldot V3, Ethereum, Base, Polygon and more — fastest blocks are not fastest finality.">
+<meta property="og:title" content="ChainLens — Live Cross-Chain Finality Observatory">
+<meta property="og:description" content="Live measured finality across 9 chains: Portaldot V3 settles in ~12s while L2s wait minutes for L1 finality. Every number measured from public RPCs, nothing invented.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg:#07090C; --panel:#0D1117; --line:#1E2632; --ink:#E8EDF2; --muted:#8A94A3;
-    --pd:#FF5A36; --sep:#6E8FB2; --base:#4D7CFE; --amoy:#9B6BFF; --green:#7EE2A0; --amber:#FFD479;
+    --pd:#FF5A36; --sep:#6E8FB2; --base:#4D7CFE; --amoy:#9B6BFF; --green:#7EE2A0; --amber:#FFD479; --red:#FF7A7A;
   }
   * { box-sizing:border-box; }
   html { background:var(--bg); }
@@ -25,13 +29,14 @@
   .wordmark { font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:30px; letter-spacing:.06em; }
   .wordmark em { font-style:normal; color:var(--pd); }
   .mast .sub { color:var(--muted); font-size:12px; letter-spacing:.04em; }
-  .mast .right { margin-left:auto; display:flex; align-items:center; gap:22px; }
+  .mast .right { margin-left:auto; display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
   .mast .cell .lab { display:block; margin-bottom:2px; }
   .mast .cell .val { font-size:15px; font-variant-numeric:tabular-nums; }
   .livedot { width:9px; height:9px; border-radius:50%; background:#3a4353; display:inline-block; margin-right:7px; vertical-align:1px; }
   .livedot.on { background:var(--green); box-shadow:0 0 8px var(--green); animation:blink 2.4s infinite; }
   .livedot.stale { background:var(--amber); box-shadow:0 0 8px var(--amber); }
   @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:.45; } }
+  .netbtns { display:flex; gap:8px; align-items:center; }
 
   /* section titles */
   h2.sect { font-size:11px; text-transform:uppercase; letter-spacing:.16em; color:var(--muted);
@@ -45,6 +50,11 @@
   .verdict .v { font-family:'Space Grotesk', sans-serif; font-size:23px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums; }
   .verdict .v small { font-size:13px; color:var(--muted); font-weight:500; font-family:'IBM Plex Mono', monospace; }
 
+  /* alert banner */
+  .alerts { display:none; margin-top:14px; border:1px solid var(--amber); background:#171307; padding:11px 16px; font-size:12.5px; line-height:1.7; }
+  .alerts.show { display:block; }
+  .alerts b { color:var(--amber); }
+
   /* settlement ticker */
   .ticker { margin-top:14px; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
     height:32px; overflow:hidden; display:flex; align-items:center; gap:26px; white-space:nowrap; padding:0 4px; }
@@ -55,7 +65,7 @@
 
   /* finality race */
   .race { border:1px solid var(--line); background:var(--panel); padding:16px 18px 10px; }
-  .lane { display:grid; grid-template-columns:132px 1fr 96px; align-items:center; gap:14px; padding:7px 0; }
+  .lane { display:grid; grid-template-columns:150px 1fr 96px; align-items:center; gap:14px; padding:7px 0; }
   .lname { font-size:11px; text-transform:uppercase; letter-spacing:.12em; display:flex; align-items:center; gap:8px; }
   .lname .dot { width:8px; height:8px; background:var(--acc); flex:none; }
   .track { position:relative; height:30px; background:#0a0e13; border:1px solid var(--line); overflow:hidden; }
@@ -71,14 +81,14 @@
     background:var(--acc); transform:translate(-50%,-50%); box-shadow:0 0 9px var(--acc); }
   .lval { text-align:right; font-family:'Space Grotesk', sans-serif; font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
   .lval small { display:block; font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--muted); font-weight:400; letter-spacing:.08em; }
-  .scale { display:grid; grid-template-columns:132px 1fr 96px; gap:14px; margin-top:2px; }
+  .scale { display:grid; grid-template-columns:150px 1fr 96px; gap:14px; margin-top:2px; }
   .scale .ticks { position:relative; height:16px; }
   .scale .ticks span { position:absolute; transform:translateX(-50%); font-size:10px; color:var(--muted); }
   .scale .ticks span:first-child { transform:none; }
   .scale .ticks span:last-child { transform:translateX(-100%); }
 
   /* chain instruments */
-  .instruments { display:grid; grid-template-columns:1.45fr 1fr 1fr 1fr; gap:12px; }
+  .instruments { display:grid; grid-template-columns:repeat(auto-fit,minmax(255px,1fr)); gap:12px; }
   .panel { background:var(--panel); border:1px solid var(--line); padding:15px 17px; }
   .panel.clickable { cursor:pointer; }
   .panel.clickable:hover { border-color:var(--acc, var(--line)); }
@@ -92,6 +102,8 @@
   .stats label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-bottom:1px; }
   .stats b { font-weight:500; font-size:13.5px; font-variant-numeric:tabular-nums; }
   .stats b small { color:var(--muted); font-size:10.5px; font-weight:400; }
+  .gasband, .indexline { margin-top:10px; font-size:11.5px; color:var(--muted); border-top:1px dashed var(--line); padding-top:8px; }
+  .gasband b, .indexline b { color:var(--ink); font-weight:600; }
   .cross { margin-top:11px; border-top:1px dashed var(--line); padding-top:9px; font-size:11.5px; color:var(--muted); line-height:1.5; }
   .cross b { color:var(--green); font-weight:600; }
   .cross b.diff { color:var(--amber); }
@@ -102,26 +114,43 @@
   .charts { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .chartbox canvas { width:100%; height:190px; display:block; }
   .charthead { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-  .legend { display:flex; gap:13px; font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  .legend { display:flex; gap:13px; font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; flex-wrap:wrap; }
   .legend i { display:inline-block; width:8px; height:8px; margin-right:5px; }
   .toggle { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; cursor:pointer; }
 
   /* lower grid: feed + calculator */
   .lower { display:grid; grid-template-columns:1.5fr 1fr; gap:12px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .feedhead, .feedrow { display:grid; grid-template-columns:70px 104px 1fr 52px 104px 76px; gap:10px; padding:5px 0; }
   .feedhead { font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); border-bottom:1px solid var(--line); }
   .feedrow { border-bottom:1px solid #12161d; font-size:12px; font-variant-numeric:tabular-nums; animation:tickin .4s ease; }
   .feedrow .fc { text-transform:uppercase; letter-spacing:.05em; }
   .feedempty { color:var(--muted); font-size:12px; padding:10px 0; }
-  select { background:#0a0e13; color:var(--ink); border:1px solid var(--line); font:inherit; font-size:12.5px;
+  select, input[type=text], input[type=number] { background:#0a0e13; color:var(--ink); border:1px solid var(--line); font:inherit; font-size:12.5px;
     padding:7px 9px; width:100%; margin:5px 0 13px; }
   .presets { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:5px 0 13px; }
   .btn { background:#0a0e13; color:var(--ink); border:1px solid var(--line); font:inherit; font-size:11px;
     text-transform:uppercase; letter-spacing:.1em; padding:8px 10px; cursor:pointer; text-decoration:none; display:inline-block; text-align:center; }
   .btn:hover { border-color:var(--muted); }
   .btn.on { border-color:var(--pd); color:var(--pd); }
+  .btn:disabled { opacity:.55; cursor:wait; }
   .calcout { font-size:13px; line-height:1.65; border-top:1px solid var(--line); padding-top:11px; margin:0; }
   .calcout b { font-family:'Space Grotesk', sans-serif; font-size:19px; }
+  .subbox { border-top:1px solid var(--line); margin-top:14px; padding-top:12px; }
+  pre.code, pre.explorer { background:#0a0e13; border:1px solid var(--line); padding:10px 12px; font-size:11.5px; overflow-x:auto; white-space:pre-wrap; word-break:break-all; color:var(--ink); margin:8px 0; }
+  table.simple { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+  table.simple th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); padding:5px 6px; border-bottom:1px solid var(--line); }
+  table.simple td { padding:5px 6px; border-bottom:1px solid #12161d; }
+  .chip { display:inline-block; font-size:10px; letter-spacing:.1em; padding:2px 7px; border:1px solid var(--line); text-transform:uppercase; }
+  .chip.ok { color:var(--green); border-color:var(--green); }
+  .chip.stale { color:var(--amber); border-color:var(--amber); }
+  .chip.down { color:var(--red); border-color:var(--red); }
+  .checkverdict { border:1px solid var(--line); padding:13px 15px; margin-top:6px; font-size:13.5px; line-height:1.65; display:none; }
+  .checkverdict.show { display:block; }
+  .checkverdict .cv { font-family:'Space Grotesk', sans-serif; font-size:20px; font-weight:700; display:block; margin-bottom:3px; }
+  .checkrow { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+  .checkrow .grow { flex:1; min-width:200px; }
+  .checkrow .btn { margin-bottom:13px; }
 
   /* verify */
   .vbtns { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 4px; }
@@ -132,13 +161,17 @@
   dl.kv dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; word-break:break-all; }
   .note { color:var(--muted); font-size:12px; line-height:1.6; margin:6px 0 0; }
 
-  /* embed */
-  .erow { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #12161d; }
+  /* embed / explorer */
+  .erow { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #12161d; flex-wrap:wrap; }
   .erow img { height:20px; flex:none; }
   .snip { flex:1; background:#0a0e13; border:1px solid var(--line); padding:7px 10px; font-size:11px;
-    overflow-x:auto; white-space:nowrap; color:var(--muted); }
+    overflow-x:auto; white-space:nowrap; color:var(--muted); min-width:200px; }
   .erow .btn, .sniprow .btn { flex:none; padding:6px 12px; }
   .sniprow { display:flex; gap:12px; align-items:stretch; margin-top:10px; }
+  .deepnums { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  .deepnum { border:1px solid var(--line); padding:13px 15px; }
+  .deepnum .n { font-family:'Space Grotesk', sans-serif; font-size:34px; font-weight:700; }
+  #deepChart { width:100%; height:170px; display:block; }
 
   /* drawer */
   #scrim { position:fixed; inset:0; background:rgba(2,4,6,.6); opacity:0; pointer-events:none; transition:opacity .25s; z-index:40; }
@@ -158,11 +191,10 @@
   footer .fbtns { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
 
   @media (max-width: 1020px) {
-    .instruments { grid-template-columns:1fr 1fr; }
-    .charts, .lower { grid-template-columns:1fr; }
+    .charts, .lower, .grid2 { grid-template-columns:1fr; }
   }
   @media (max-width: 640px) {
-    .instruments, .verdicts { grid-template-columns:1fr; }
+    .verdicts { grid-template-columns:1fr; }
     .verdict + .verdict { border-left:none; border-top:1px solid var(--line); }
     .lane { grid-template-columns:92px 1fr 70px; gap:9px; }
     .scale { grid-template-columns:92px 1fr 70px; gap:9px; }
@@ -181,6 +213,11 @@
       <div class="sub">LIVE CROSS-CHAIN FINALITY OBSERVATORY — READ-ONLY RPC · NO WALLETS · NO KEYS</div>
     </div>
     <div class="right">
+      <div class="netbtns">
+        <button class="btn" id="netTestnet">Testnet</button>
+        <button class="btn" id="netMainnet">Mainnet</button>
+        <button class="btn" id="copyView">Copy link to this view</button>
+      </div>
       <div class="cell"><span class="lab">Time (IST)</span><span class="val" id="clock">--:--:--</span></div>
       <div class="cell"><span class="lab">Samples</span><span class="val" id="sampleCount">—</span></div>
       <div class="cell"><span class="lab">Status</span><span class="val"><span class="livedot" id="liveDot"></span><span id="liveText">CONNECTING</span></span></div>
@@ -192,6 +229,8 @@
     <div class="verdict"><div class="lab">Fastest block time</div><div class="v" id="vBlock">—</div></div>
     <div class="verdict"><div class="lab">Lowest gas price</div><div class="v" id="vGas">—</div></div>
   </div>
+
+  <div class="alerts" id="alerts"></div>
 
   <div class="ticker" id="ticker"><span class="empty">SETTLEMENT TICKER — finalized-block events will stream here as the chains settle…</span></div>
 
@@ -205,6 +244,23 @@
 
   <h2 class="sect">Chain Instruments — click a panel for session detail</h2>
   <div class="instruments" id="instruments"></div>
+
+  <h2 class="sect">Is My Block Final Yet?</h2>
+  <div class="panel">
+    <p class="note" style="margin-top:0">An explorer saying "success" means your transaction was <b>included</b> — not that it is <b>final</b>. Confirmed ≠ final: until the finalized head passes your block, a reorg can still undo it. Paste a block number or a transaction hash and ChainLens checks it against the live finalized head.</p>
+    <div class="checkrow">
+      <div style="min-width:170px"><label class="lab" for="checkChain">Chain</label><select id="checkChain"></select></div>
+      <div class="grow"><label class="lab" for="checkInput">Block number or 0x… transaction hash</label><input type="text" id="checkInput" placeholder="e.g. 8123456 or 0x… (64 hex chars)"></div>
+      <button class="btn" id="checkBtn">Check finality</button>
+    </div>
+    <div class="checkverdict" id="checkOut"></div>
+  </div>
+
+  <h2 class="sect">Endpoint Race — do the RPCs agree?</h2>
+  <div class="panel">
+    <p class="note" style="margin-top:0">Every configured endpoint for each chain, raced head-to-head: height, latency, and who's stale. When tools disagree about a chain, this is usually why.</p>
+    <div id="endpointsOut"><p class="note">Racing endpoints…</p></div>
+  </div>
 
   <h2 class="sect">Session Charts</h2>
   <div class="charts">
@@ -235,6 +291,47 @@
       <span class="lab">Use case</span>
       <div class="presets" id="calcPresets"></div>
       <p class="calcout" id="calcOut">Collecting live samples…</p>
+      <div class="subbox">
+        <span class="lab">Confirmations → time converter</span>
+        <label class="lab" for="confInput" style="display:block;margin-top:10px">Confirmations</label>
+        <input type="number" id="confInput" value="12" min="1" max="100000">
+        <p class="note" id="confOut">Collecting live samples…</p>
+        <div id="folkTable"></div>
+      </div>
+      <div class="subbox">
+        <span class="lab">Stop counting blocks</span>
+        <p class="note">Confirmation counts are folklore — the number that was safe last year says nothing about today. Ask for the finalized block instead; it is the chain's own answer.</p>
+        <pre class="code">// ethers v6
+const fin = await provider.getBlock('finalized');
+const isFinal = myBlock &lt;= fin.number;</pre>
+        <pre class="code">// viem
+const fin = await client.getBlock({ blockTag: 'finalized' })
+const isFinal = myBlock &lt;= fin.number</pre>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sect">Bridge Wait Estimator</h2>
+  <div class="panel">
+    <p class="note" style="margin-top:0">Bridging has two waits: the source chain finalizing (measured live by ChainLens) and the bridge protocol's own rules (labelled CONSTANT — protocol parameters, not measurements). They are shown separately, never merged into a fake single number. Expectations only — ChainLens cannot track or recover a transfer.</p>
+    <div class="checkrow">
+      <div style="flex:1;min-width:180px"><label class="lab" for="bridgeFrom">From</label><select id="bridgeFrom"></select></div>
+      <div style="flex:1;min-width:180px"><label class="lab" for="bridgeTo">To</label><select id="bridgeTo"></select></div>
+    </div>
+    <p class="calcout" id="bridgeOut">Collecting live samples…</p>
+  </div>
+
+  <div id="deepWrap">
+    <h2 class="sect">Portaldot Deep-Dive — two views of the same finality</h2>
+    <div class="panel">
+      <div class="deepnums">
+        <div class="deepnum"><span class="lab">EVM finalized lag</span><div class="n" id="deepEvm">—</div><span class="note">blocks behind the EVM latest head</span></div>
+        <div class="deepnum"><span class="lab">Substrate finalized lag</span><div class="n" id="deepSub">—</div><span class="note">blocks behind the Substrate head · <span id="deepAgree"></span></span></div>
+      </div>
+      <canvas id="deepChart"></canvas>
+      <div class="lab" style="margin:12px 0 6px">Recent Portaldot finalized events</div>
+      <div id="deepEvents"><p class="note">Waiting for finalized-block events…</p></div>
+      <p class="note">Portaldot finality comes from GRANDPA: validators vote on blocks and a block is finalized once a supermajority agrees — typically about two blocks behind the head here, which is why Portaldot settles in seconds while chains that wait for checkpoint epochs take minutes. ChainLens reads both the EVM and the native Substrate view of that same GRANDPA finality and shows you when they disagree.</p>
     </div>
   </div>
 
@@ -243,6 +340,25 @@
     <p class="note" style="margin-top:0">Don't trust the dashboard — check it. Each button takes one fresh sample straight from that chain's public RPC and shows the raw values next to the numbers ChainLens computed from them. Finality lag is simply latest − finalized; finality time is lag × measured block time.</p>
     <div class="vbtns" id="verifyBtns"></div>
     <div id="verifyOut"><p class="note">No sample taken yet.</p></div>
+  </div>
+
+  <h2 class="sect">Deploy FinalityAnchor Yourself</h2>
+  <div class="panel">
+    <p class="note" style="margin-top:0">FinalityAnchor is the contract that stores ChainLens finality snapshots on Portaldot V3. ChainLens itself could not deploy it — the testnet funds sit in an unmapped fallback account (full evidence in <a href="https://github.com/Eren-dotcom/chainlens/blob/main/docs/ANCHOR-STATUS.md" target="_blank" rel="noopener" style="color:var(--ink)">docs/ANCHOR-STATUS.md</a>). But your wallet can: deploy the exact compiled bytecode from your own account.</p>
+    <div id="anchorInfo"><p class="note">Loading contract…</p></div>
+    <div class="vbtns">
+      <button class="btn" id="copyBytecode">Copy bytecode</button>
+      <button class="btn" id="deployBtn">Deploy with my wallet</button>
+    </div>
+    <div id="deployOut"></div>
+    <p class="note"><b style="color:var(--ink)">Your wallet signs. ChainLens never sees a key and stays read-only.</b></p>
+  </div>
+
+  <h2 class="sect">API Explorer</h2>
+  <div class="panel">
+    <p class="note" style="margin-top:0">Every number on this page is a public JSON endpoint. Try them live:</p>
+    <div id="explorerRows"></div>
+    <pre class="explorer" id="explorerOut" style="display:none"></pre>
   </div>
 
   <h2 class="sect">Embed ChainLens</h2>
@@ -260,6 +376,12 @@
       Polygon Amoy finalizes through Heimdall checkpoints, so its finality is reported as n/a rather
       than the misleading ≈0s its EVM finalized tag suggests. Full definitions in the repo's
       docs/METHODOLOGY.md. Read-only: ChainLens never signs or sends a transaction.
+      <br><br>v3 notes: for L2s (Base, Arbitrum, OP), the finalized tag measures that tag's own
+      finality — the L2's view of L1 finality — which is exactly the wait bridges and exchanges
+      experience. Bor chains (Amoy, Polygon) report finality as n/a by design. The Finality Index
+      is a log scale: 5s = 100, 30 min = 0, computed from the session average. Bridge waits marked
+      CONSTANT are protocol parameters (challenge periods, checkpoint cadence), not measurements.
+      The open dataset format is documented in docs/DATASET.md.
     </div>
     <div class="fbtns">
       <a class="btn" href="/api/history.csv">Export CSV</a>
@@ -284,13 +406,29 @@ const META = {
   sepolia:   { short: 'Sepolia',      acc: '#6E8FB2' },
   base:      { short: 'Base Sepolia', acc: '#4D7CFE' },
   amoy:      { short: 'Amoy',         acc: '#9B6BFF' },
+  arbitrum:  { short: 'Arbitrum Sepolia', acc: '#28A0F0' },
+  optimism:  { short: 'OP Sepolia',   acc: '#FF0420' },
+  ethereum:  { short: 'Ethereum',     acc: '#627EEA' },
+  'base-mainnet': { short: 'Base',   acc: '#4D7CFE' },
+  'polygon-mainnet': { short: 'Polygon', acc: '#8247E5' },
 };
-const ORDER = Object.keys(META);
+const TESTNET = ['portaldot', 'sepolia', 'base', 'amoy', 'arbitrum', 'optimism'];
+const MAINNET = ['ethereum', 'base-mainnet', 'polygon-mainnet'];
+const ALL = [...TESTNET, ...MAINNET];
+// Chains with finalityTag:false in src/chains.js — checkpoint-based, finality n/a.
+const NA = new Set(['amoy', 'polygon-mainnet']);
+const OPTIMISTIC = new Set(['base', 'base-mainnet', 'optimism', 'arbitrum']);
+const ETH_L1 = new Set(['ethereum', 'sepolia']);
+const BOR = new Set(['amoy', 'polygon-mainnet']);
+const params = new URLSearchParams(location.search);
+let activeNetwork = params.get('network') === 'mainnet' ? 'mainnet' : 'testnet';
+let pendingDrawer = params.get('chain');
+const activeKeys = () => (activeNetwork === 'mainnet' ? MAINNET : TESTNET);
 const $ = (id) => document.getElementById(id);
 const fmtNum = (n) => (n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US'));
 const fmtSec = (s) => {
   if (s == null || !Number.isFinite(s)) return '—';
-  if (s < 90) return (s < 10 ? Math.round(s * 10) / 10 : Math.round(s)) + 's'; // 0.2s must not round to "0s"
+  if (s < 90) return (s < 10 ? Math.round(s * 10) / 10 : Math.round(s)) + 's';
   const m = Math.floor(s / 60), r = Math.round(s % 60);
   return r ? m + 'm ' + r + 's' : m + 'm';
 };
@@ -302,53 +440,104 @@ const fmtGas = (w) => {
   return w + ' wei';
 };
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied ✓'; }
+  catch { btn.textContent = 'Select & copy'; }
+  setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+}
 
 /* ---------- clock ---------- */
 setInterval(() => {
   $('clock').textContent = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata' }) + ' IST';
 }, 1000);
 
-/* ---------- build static structures ---------- */
-// Finality race lanes
-$('raceLanes').innerHTML = ORDER.map((k) => {
-  const m = META[k];
-  return `<div class="lane" id="lane-${k}" style="--acc:${m.acc}">
-    <div class="lname"><span class="dot"></span>${m.short}</div>
-    <div class="track" id="track-${k}"><i class="gl" style="left:28.1%"></i><i class="gl" style="left:56.2%"></i><i class="gl" style="left:84.3%"></i>${k === 'amoy' ? '<div class="hatchnote">Checkpoint-based · n/a</div>' : `<div class="marker" id="marker-${k}" style="left:0%"></div>`}</div>
-    <div class="lval" id="lval-${k}">—<small>TIME TO FINALITY</small></div>
-  </div>`;
-}).join('');
+/* ---------- state ---------- */
+let latest = null;
+let stats = null;
+let prevChains = null;
+let histSamples = [];
+let endpointsData = null;
+let lastSpikeAt = {}; // chain -> ts, throttle gas-spike ticker events
+let pdEvents = [];    // recent Portaldot finalized events for the deep-dive
 
-// Chain instrument panels
-$('instruments').innerHTML = ORDER.map((k) => {
-  const m = META[k];
-  return `<article class="panel clickable" data-key="${k}" style="--acc:${m.acc}" title="Open session detail">
-    <header><span class="pname">${m.short}</span><span class="pcid" data-f="cid">CHAIN —</span></header>
-    <div class="big"><span class="bignum" data-f="fin">—</span><span class="lab biglab">Time to finality</span></div>
-    <div class="stats">
-      <div><label>Height</label><b data-f="height">—</b></div>
-      <div><label>Finality lag</label><b data-f="lag">—</b></div>
-      <div><label>Block time</label><b data-f="bt">—</b></div>
-      <div><label>Gas price</label><b data-f="gas">—</b></div>
-      <div><label>Reliability</label><b data-f="rel">—</b></div>
-      <div><label>RPC latency</label><b data-f="lat">—</b></div>
-      <div><label>Txs in block</label><b data-f="txs">—</b></div>
-      <div><label>Gas used</label><b data-f="gu">—</b></div>
-    </div>
-    ${k === 'portaldot' ? '<div class="cross" data-f="cross">Substrate cross-check: waiting…</div>' : ''}
-    <div class="perr" data-f="err" hidden></div>
-    <div class="openlab">Click for session detail →</div>
-  </article>`;
-}).join('');
-document.querySelectorAll('#instruments .panel').forEach((p) =>
-  p.addEventListener('click', () => openDrawer(p.dataset.key)));
+/* ---------- network-aware builders ---------- */
+function buildStructures() {
+  const keys = activeKeys();
+  $('netTestnet').classList.toggle('on', activeNetwork === 'testnet');
+  $('netMainnet').classList.toggle('on', activeNetwork === 'mainnet');
+  $('deepWrap').style.display = activeNetwork === 'testnet' ? '' : 'none';
+  $('raceLanes').innerHTML = keys.map((k) => {
+    const m = META[k];
+    return `<div class="lane" id="lane-${k}" style="--acc:${m.acc}">
+      <div class="lname"><span class="dot"></span>${m.short}</div>
+      <div class="track" id="track-${k}"><i class="gl" style="left:28.1%"></i><i class="gl" style="left:56.2%"></i><i class="gl" style="left:84.3%"></i>${NA.has(k) ? '<div class="hatchnote">Checkpoint-based · n/a</div>' : `<div class="marker" id="marker-${k}" style="left:0%"></div>`}</div>
+      <div class="lval" id="lval-${k}">—<small>TIME TO FINALITY</small></div>
+    </div>`;
+  }).join('');
+  $('instruments').innerHTML = keys.map((k) => {
+    const m = META[k];
+    return `<article class="panel clickable" data-key="${k}" style="--acc:${m.acc}" title="Open session detail">
+      <header><span class="pname">${m.short}</span><span class="pcid" data-f="cid">CHAIN —</span></header>
+      <div class="big"><span class="bignum" data-f="fin">—</span><span class="lab biglab">Time to finality</span></div>
+      <div class="stats">
+        <div><label>Height</label><b data-f="height">—</b></div>
+        <div><label>Finality lag</label><b data-f="lag">—</b></div>
+        <div><label>Block time</label><b data-f="bt">—</b></div>
+        <div><label>Gas price</label><b data-f="gas">—</b></div>
+        <div><label>Reliability</label><b data-f="rel">—</b></div>
+        <div><label>RPC latency</label><b data-f="lat">—</b></div>
+        <div><label>Txs in block</label><b data-f="txs">—</b></div>
+        <div><label>Gas used</label><b data-f="gu">—</b></div>
+      </div>
+      <div class="gasband" data-f="gasband" hidden></div>
+      <div class="indexline" data-f="index">INDEX —</div>
+      ${k === 'portaldot' ? '<div class="cross" data-f="cross">Substrate cross-check: waiting…</div>' : ''}
+      <div class="perr" data-f="err" hidden></div>
+      <div class="openlab">Click for session detail →</div>
+    </article>`;
+  }).join('');
+  document.querySelectorAll('#instruments .panel').forEach((p) =>
+    p.addEventListener('click', () => openDrawer(p.dataset.key)));
+  const legendHtml = keys.map((k) => `<span><i style="background:${META[k].acc}"></i>${META[k].short}</span>`).join('');
+  $('legendFin').innerHTML = legendHtml;
+  $('legendGas').innerHTML = legendHtml;
+  const keepCalc = $('calcChain').value;
+  $('calcChain').innerHTML = keys.map((k) => `<option value="${k}">${META[k].short}</option>`).join('');
+  if (keys.includes(keepCalc)) $('calcChain').value = keepCalc;
+  $('checkChain').innerHTML = keys.map((k) => `<option value="${k}">${META[k].short}</option>`).join('');
+  $('verifyBtns').innerHTML = keys.map((k) =>
+    `<button class="btn" data-chain="${k}">Sample ${META[k].short}</button>`).join('');
+  $('verifyBtns').querySelectorAll('button').forEach((b) =>
+    b.addEventListener('click', () => verifyChain(b.dataset.chain, b)));
+  const origin = location.origin;
+  $('embedRows').innerHTML = keys.map((k) => {
+    const snip = `<img src="${origin}/api/badge.svg?chain=${k}" alt="ChainLens ${META[k].short} finality badge">`;
+    return `<div class="erow"><img src="/api/badge.svg?chain=${k}" alt="ChainLens ${META[k].short} badge">
+      <code class="snip">${esc(snip)}</code><button class="btn" data-copy="${esc(snip)}">Copy</button></div>`;
+  }).join('');
+  $('embedRows').querySelectorAll('[data-copy]').forEach((b) =>
+    b.addEventListener('click', () => copyText(b.dataset.copy, b)));
+  buildExplorer();
+  if (latest) renderStatus({ ready: true, latest, stats });
+  drawCharts();
+  renderEndpoints();
+}
+function setNetwork(n) {
+  if (activeNetwork === n) return;
+  activeNetwork = n;
+  prevChains = null; // no cross-view diff events
+  buildStructures();
+}
+$('netTestnet').addEventListener('click', () => setNetwork('testnet'));
+$('netMainnet').addEventListener('click', () => setNetwork('mainnet'));
+$('copyView').addEventListener('click', (e) => {
+  const u = new URL(location.href);
+  u.searchParams.set('network', activeNetwork);
+  if (drawerKey) u.searchParams.set('chain', drawerKey); else u.searchParams.delete('chain');
+  copyText(u.toString(), e.currentTarget);
+});
 
-// Chart legends
-const legendHtml = ORDER.map((k) => `<span><i style="background:${META[k].acc}"></i>${META[k].short}</span>`).join('');
-$('legendFin').innerHTML = legendHtml;
-$('legendGas').innerHTML = legendHtml;
-
-// Wait calculator
+// Wait calculator presets (network-independent)
 const PRESETS = [
   { label: 'Quick payment', m: 1 },
   { label: 'NFT mint', m: 1.5 },
@@ -356,7 +545,6 @@ const PRESETS = [
   { label: 'Exchange deposit', m: 3 },
 ];
 let calcPreset = PRESETS[2];
-$('calcChain').innerHTML = ORDER.map((k) => `<option value="${k}">${META[k].short}</option>`).join('');
 $('calcPresets').innerHTML = PRESETS.map((p, i) =>
   `<button class="btn${p === calcPreset ? ' on' : ''}" data-i="${i}">${p.label} · ×${p.m}</button>`).join('');
 $('calcPresets').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
@@ -365,74 +553,70 @@ $('calcPresets').querySelectorAll('button').forEach((b) => b.addEventListener('c
   renderCalc();
 }));
 $('calcChain').addEventListener('change', renderCalc);
+$('confInput').addEventListener('input', renderCalc);
 
-// Verify buttons
-$('verifyBtns').innerHTML = ORDER.map((k) =>
-  `<button class="btn" data-chain="${k}">Sample ${META[k].short}</button>`).join('');
-$('verifyBtns').querySelectorAll('button').forEach((b) =>
-  b.addEventListener('click', () => verifyChain(b.dataset.chain, b)));
+// Bridge selects: all 9 chains, grouped by network
+const optgroups = (sel) => {
+  sel.innerHTML = `<optgroup label="Testnet">${TESTNET.map((k) => `<option value="${k}">${META[k].short}</option>`).join('')}</optgroup>` +
+    `<optgroup label="Mainnet">${MAINNET.map((k) => `<option value="${k}">${META[k].short}</option>`).join('')}</optgroup>`;
+};
+optgroups($('bridgeFrom')); optgroups($('bridgeTo'));
+$('bridgeFrom').value = 'base'; $('bridgeTo').value = 'ethereum';
+$('bridgeFrom').addEventListener('change', renderBridge);
+$('bridgeTo').addEventListener('change', renderBridge);
 
-// Embed rows + iframe snippet
-const origin = location.origin;
-$('embedRows').innerHTML = ORDER.map((k) => {
-  const snip = `<img src="${origin}/api/badge.svg?chain=${k}" alt="ChainLens ${META[k].short} finality badge">`;
-  return `<div class="erow"><img src="/api/badge.svg?chain=${k}" alt="ChainLens ${META[k].short} badge">
-    <code class="snip">${esc(snip)}</code><button class="btn" data-copy="${esc(snip)}">Copy</button></div>`;
-}).join('');
-const iframeSnip = `<iframe src="${origin}/" width="100%" height="760" style="border:0" title="ChainLens — live cross-chain finality observatory"></iframe>`;
+// Dashboard iframe snippet
+const iframeSnip = `<iframe src="${location.origin}/" width="100%" height="760" style="border:0" title="ChainLens — live cross-chain finality observatory"></iframe>`;
 $('iframeSnippet').textContent = iframeSnip;
-document.querySelectorAll('[data-copy]').forEach((b) =>
-  b.addEventListener('click', () => copyText(b.dataset.copy, b)));
 $('copyIframe').addEventListener('click', (e) => copyText(iframeSnip, e.currentTarget));
-async function copyText(text, btn) {
-  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied ✓'; }
-  catch { btn.textContent = 'Select & copy'; }
-  setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
-}
 
-/* ---------- state + rendering ---------- */
-let latest = null;       // latest sample object from /api/status
-let stats = null;        // session stats from /api/status
-let prevChains = null;   // previous sample's chains, for feed/ticker diffs
-let histSamples = [];    // /api/history ring
-
+/* ---------- rendering ---------- */
 function setLive(mode, text) {
   $('liveDot').className = 'livedot' + (mode ? ' ' + mode : '');
   $('liveText').textContent = text;
 }
-
 function verdict(el, winner, fmt) {
   if (!winner) { el.textContent = '—'; return; }
   const m = META[winner.chain];
   el.innerHTML = `<span style="color:${m.acc}">${m.short}</span> <small>${fmt(winner.value)}</small>`;
 }
-
+function bestOf(keys, get) {
+  let w = null;
+  for (const k of keys) {
+    const c = latest && latest.chains[k];
+    if (!c || !c.ok) continue;
+    const v = get(c);
+    if (v == null || !Number.isFinite(v)) continue;
+    if (!w || v < w.value) w = { chain: k, value: v };
+  }
+  return w;
+}
 function raceX(sec) {
   const v = Math.max(sec, 0.5);
   return Math.min(100, Math.max(0, (Math.log10(v) / Math.log10(3600)) * 100));
 }
 
 function renderStatus(st) {
-  stats = st.stats || null;
+  stats = st.stats || stats;
   if (!st.ready || !st.latest) { setLive('', 'WARMING UP'); return; }
   latest = st.latest;
   setLive('on', 'LIVE');
+  const keys = activeKeys();
   if (stats) {
-    const n = Math.max(0, ...ORDER.map((k) => stats[k]?.samples || 0));
+    const n = Math.max(0, ...keys.map((k) => stats[k]?.samples || 0));
     if (n) $('sampleCount').textContent = n;
   }
-  const w = latest.winners || {};
-  verdict($('vFin'), w.fastestFinality, (v) => '≈' + fmtSec(v));
-  verdict($('vBlock'), w.fastestBlockTime, (v) => fmtSec(v) + ' / block');
-  verdict($('vGas'), w.lowestGas, fmtGas);
+  verdict($('vFin'), bestOf(keys, (c) => c.finalitySec), (v) => '≈' + fmtSec(v));
+  verdict($('vBlock'), bestOf(keys, (c) => c.blockTimeSec), (v) => fmtSec(v) + ' / block');
+  verdict($('vGas'), bestOf(keys, (c) => c.gasWei), fmtGas);
 
-  for (const k of ORDER) {
+  for (const k of keys) {
     const c = latest.chains[k];
     const panel = document.querySelector(`#instruments .panel[data-key="${k}"]`);
+    if (!panel || !c) continue;
     const f = (name) => panel.querySelector(`[data-f="${name}"]`);
-    if (!c) continue;
     f('cid').textContent = 'CHAIN ' + fmtNum(c.chainId);
-    f('fin').textContent = k === 'amoy' ? 'n/a' : (c.ok ? fmtSec(c.finalitySec) : '—');
+    f('fin').textContent = NA.has(k) ? 'n/a' : (c.ok ? fmtSec(c.finalitySec) : '—');
     f('height').textContent = fmtNum(c.height);
     f('lag').textContent = c.finalityLagBlocks == null ? '—' : fmtNum(c.finalityLagBlocks) + ' blocks';
     f('bt').innerHTML = c.blockTimeSec == null ? '—' : fmtSec(c.blockTimeSec) + (c.blockTimeCarried ? ' <small>carried</small>' : ' <small>live</small>');
@@ -441,60 +625,86 @@ function renderStatus(st) {
     f('lat').textContent = c.rpcLatencyMs == null ? '—' : fmtNum(c.rpcLatencyMs) + ' ms';
     f('txs').textContent = fmtNum(c.txCount);
     f('gu').textContent = fmtNum(c.gasUsed);
+    const st2 = stats && stats[k];
+    const gb = f('gasband');
+    if (st2 && st2.gasStats) {
+      gb.hidden = false;
+      gb.innerHTML = `Gas band — now <b>${fmtGas(c.gasWei)}</b> · p50 <b>${fmtGas(st2.gasStats.p50)}</b> · p95 <b>${fmtGas(st2.gasStats.p95)}</b>`;
+    } else gb.hidden = true;
+    f('index').innerHTML = NA.has(k) ? 'INDEX n/a' : (st2 && st2.finalityIndex != null ? `INDEX <b>${st2.finalityIndex}/100</b>` : 'INDEX —');
     const err = f('err');
     if (!c.ok) { err.hidden = false; err.textContent = 'Endpoint error: ' + (c.error || 'unknown'); }
     else err.hidden = true;
     if (k === 'portaldot') {
       const s = latest.substrate;
       const cross = f('cross');
-      if (s && s.ok) {
-        cross.innerHTML = `Substrate cross-check: finalized lag <b>${fmtNum(s.lagBlocks)} blocks</b> — ` +
-          (s.agrees ? '<b>agrees</b> with the EVM finalized view' : '<b class="diff">differs</b> from the EVM finalized view');
-      } else if (s) {
-        cross.textContent = 'Substrate cross-check unavailable this sample.';
+      if (cross) {
+        if (s && s.ok) {
+          cross.innerHTML = `Substrate cross-check: finalized lag <b>${fmtNum(s.lagBlocks)} blocks</b> — ` +
+            (s.agrees ? '<b>agrees</b> with the EVM finalized view' : '<b class="diff">differs</b> from the EVM finalized view');
+        } else if (s) cross.textContent = 'Substrate cross-check unavailable this sample.';
       }
     }
-    // race
-    if (k !== 'amoy') {
+    if (!NA.has(k)) {
       const mk = $('marker-' + k);
-      if (c.ok && c.finalitySec != null) { mk.style.left = raceX(c.finalitySec) + '%'; mk.style.display = ''; }
-      else mk.style.display = 'none';
+      if (mk) {
+        if (c.ok && c.finalitySec != null) { mk.style.left = raceX(c.finalitySec) + '%'; mk.style.display = ''; }
+        else mk.style.display = 'none';
+      }
     }
-    $('lval-' + k).innerHTML = (k === 'amoy' ? 'n/a' : (c.ok ? '≈' + fmtSec(c.finalitySec) : '—')) + '<small>TIME TO FINALITY</small>';
+    const lv = $('lval-' + k);
+    if (lv) lv.innerHTML = (NA.has(k) ? 'n/a' : (c.ok ? '≈' + fmtSec(c.finalitySec) : '—')) + '<small>TIME TO FINALITY</small>';
+    // gas spike -> ticker (throttled once per chain per 5 min)
+    if (st2 && st2.gasStats && st2.samples >= 10 && c.ok && c.gasWei != null && st2.gasStats.p95 != null
+        && c.gasWei > st2.gasStats.p95 * 1.5 && Date.now() - (lastSpikeAt[k] || 0) > 300000) {
+      lastSpikeAt[k] = Date.now();
+      addTickerRaw(`⚡ <b>${META[k].short}</b> gas spike — now <b>${fmtGas(c.gasWei)}</b> vs p95 ${fmtGas(st2.gasStats.p95)}`);
+    }
   }
   diffEvents(latest);
   renderCalc();
+  renderBridge();
+  renderDeep();
+  renderAlerts();
   if (drawerKey) fillDrawer(drawerKey);
+  if (pendingDrawer && META[pendingDrawer]) {
+    const k = pendingDrawer; pendingDrawer = null;
+    if (ALL.includes(k)) openDrawer(k);
+  }
 }
 
 function diffEvents(sample) {
   const prev = prevChains;
   prevChains = sample.chains;
-  if (!prev) return; // first sample: baseline only, no fabricated events
+  if (!prev) return;
   const time = new Date(sample.ts).toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata' });
-  for (const k of ORDER) {
+  for (const k of activeKeys()) {
     const c = sample.chains[k], p = prev[k];
     if (!c || !p) continue;
     if (c.ok && c.height != null && p.height != null && c.height !== p.height) addFeedRow(time, k, c);
     if (c.finalizedHeight != null && p.finalizedHeight != null && c.finalizedHeight > p.finalizedHeight) {
       addTicker(k, c);
       const lane = $('lane-' + k);
-      lane.classList.remove('pulse'); void lane.offsetWidth; lane.classList.add('pulse');
+      if (lane) { lane.classList.remove('pulse'); void lane.offsetWidth; lane.classList.add('pulse'); }
+      if (k === 'portaldot') {
+        pdEvents.unshift({ time, block: c.finalizedHeight, fin: c.finalitySec });
+        pdEvents = pdEvents.slice(0, 8);
+      }
     }
   }
 }
-
-function addTicker(k, c) {
+function addTickerRaw(html) {
   const t = $('ticker');
   const empty = t.querySelector('.empty');
   if (empty) empty.remove();
   const el = document.createElement('span');
-  el.className = 'tk';
-  el.innerHTML = `▸ <b>${META[k].short}</b> block <b>${fmtNum(c.finalizedHeight)}</b> finalized · ≈${fmtSec(c.finalitySec)}`;
+  el.className = 'tk'; el.innerHTML = html;
   t.appendChild(el);
   while (t.children.length > 10) t.removeChild(t.firstChild);
 }
-
+function addTicker(k, c) {
+  addTickerRaw(`▸ <b>${META[k].short}</b> block <b>${fmtNum(c.finalizedHeight)}</b> finalized · ≈${fmtSec(c.finalitySec)}`);
+}
 function addFeedRow(time, k, c) {
   const feed = $('feed');
   const empty = feed.querySelector('.feedempty');
@@ -507,22 +717,196 @@ function addFeedRow(time, k, c) {
   while (feed.children.length > 30) feed.removeChild(feed.lastChild);
 }
 
-/* ---------- wait calculator ---------- */
+/* ---------- alerts ---------- */
+function renderAlerts() {
+  const items = [];
+  if (stats) {
+    for (const k of activeKeys()) {
+      const st2 = stats[k];
+      if (st2 && st2.reliabilityPct != null && st2.reliabilityPct < 97)
+        items.push(`<b>${META[k].short}</b> endpoint reliability is ${st2.reliabilityPct}% this session`);
+      const c = latest && latest.chains[k];
+      if (st2 && st2.finalitySec && c && c.ok && c.finalitySec != null && st2.finalitySec.avg > 0 && c.finalitySec > 2 * st2.finalitySec.avg)
+        items.push(`<b>${META[k].short}</b> finality is ≈${fmtSec(c.finalitySec)} right now vs its session average of ${fmtSec(st2.finalitySec.avg)}`);
+    }
+  }
+  if (endpointsData) {
+    for (const row of endpointsData.chains || []) {
+      if (!activeKeys().includes(row.chain)) continue;
+      for (const e of row.endpoints || []) {
+        if (!e.ok) items.push(`<b>${META[row.chain].short}</b> endpoint ${esc(shortHost(e.url))} is DOWN`);
+        else if ((row.staleUrls || []).includes(e.url)) items.push(`<b>${META[row.chain].short}</b> endpoint ${esc(shortHost(e.url))} is STALE`);
+      }
+    }
+  }
+  const box = $('alerts');
+  if (items.length) { box.classList.add('show'); box.innerHTML = '⚠ ' + items.join(' &nbsp;·&nbsp; '); }
+  else { box.classList.remove('show'); box.innerHTML = ''; }
+}
+const shortHost = (u) => { try { return new URL(u).hostname; } catch { return u; } };
+
+/* ---------- wait calculator + confirmations ---------- */
 function renderCalc() {
   const out = $('calcOut');
-  const k = $('calcChain').value;
+  const k = $('calcChain').value || activeKeys()[0];
   const st = stats && stats[k];
-  if (!st) { out.textContent = 'Collecting live samples…'; return; }
+  if (!st) { out.textContent = 'Collecting live samples…'; $('confOut').textContent = 'Collecting live samples…'; $('folkTable').innerHTML = ''; return; }
   if (!st.finalitySec || st.finalitySec.p95 == null) {
     out.innerHTML = `<b>${META[k].short}</b> finalizes through Heimdall checkpoints (minutes), not per-block ` +
       `finality — so there is no measured per-transfer wait to give you. Treat a transfer as final only once ` +
       `a checkpoint covering it has landed. (Based on ${st.samples} live samples this session.)`;
+  } else {
+    const wait = Math.round(st.finalitySec.p95 * calcPreset.m);
+    out.innerHTML = `Wait <b>≈${fmtSec(wait)}</b> before treating a ${META[k].short} transfer as final for a ` +
+      `${calcPreset.label.toLowerCase()} — based on ${st.samples} live samples, p95 finality ` +
+      `${fmtSec(st.finalitySec.p95)} × ${calcPreset.m} safety margin.`;
+  }
+  const bt = latest && latest.chains[k] ? latest.chains[k].blockTimeSec : null;
+  const n = Math.max(1, Math.floor(Number($('confInput').value) || 0));
+  $('confOut').innerHTML = bt == null
+    ? 'Block time not measured yet for this chain.'
+    : `<b>${n} confs</b> ≈ <b>${fmtSec(n * bt)}</b> on ${META[k].short} at the measured ${fmtSec(bt)}/block — and finality is a separate, longer wait (see the race above).`;
+  $('folkTable').innerHTML = `<table class="simple"><tr><th>Chain</th><th>6 confs</th><th>12 confs</th><th>64 confs</th></tr>` +
+    activeKeys().map((kk) => {
+      const b = latest && latest.chains[kk] ? latest.chains[kk].blockTimeSec : null;
+      const cell = (m) => (b == null ? '—' : fmtSec(m * b));
+      return `<tr><td style="color:${META[kk].acc}">${META[kk].short}</td><td>${cell(6)}</td><td>${cell(12)}</td><td>${cell(64)}</td></tr>`;
+    }).join('') + '</table>';
+}
+
+/* ---------- bridge wait estimator ---------- */
+function renderBridge() {
+  const out = $('bridgeOut');
+  const from = $('bridgeFrom').value, to = $('bridgeTo').value;
+  if (!from || !to) return;
+  const st = stats && stats[from];
+  const parts = [];
+  if (st && st.finalitySec && st.finalitySec.p95 != null)
+    parts.push(`Measured leg — ${META[from].short} finality p95 this session: <b>≈${fmtSec(st.finalitySec.p95)}</b> (${st.samples} samples)`);
+  else if (BOR.has(from))
+    parts.push(`Measured leg — ${META[from].short} is checkpoint-based: no per-block finality to measure; the wait is governed by checkpoint cadence`);
+  else parts.push(`Measured leg — collecting samples for ${META[from].short}…`);
+  if (OPTIMISTIC.has(from) && ETH_L1.has(to))
+    parts.push(`CONSTANT leg — +7 days: the rollup's canonical bridge challenge period, not measured by ChainLens`);
+  if (BOR.has(from) || BOR.has(to))
+    parts.push(`CONSTANT note — Polygon-family checkpoint cadence ~20–30 min (protocol parameter, not measured by ChainLens)`);
+  out.innerHTML = parts.join('<br>') + `<br><span class="note">Expectations only — ChainLens cannot track or recover a transfer.</span>`;
+}
+
+/* ---------- finality checker ---------- */
+$('checkBtn').addEventListener('click', runCheck);
+$('checkInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') runCheck(); });
+async function runCheck() {
+  const k = $('checkChain').value;
+  const v = $('checkInput').value.trim();
+  const out = $('checkOut');
+  out.className = 'checkverdict show';
+  if (!v) { out.innerHTML = '<span class="cv">—</span>Enter a block number or a transaction hash first.'; return; }
+  let q;
+  if (/^0x[0-9a-fA-F]{64}$/.test(v)) q = 'tx=' + v;
+  else if (/^\d+$/.test(v)) q = 'block=' + v;
+  else { out.innerHTML = '<span class="cv">NOT RECOGNISED</span>That is neither a block number nor a 0x transaction hash (64 hex characters).'; return; }
+  out.innerHTML = 'Checking against the live finalized head…';
+  try {
+    const r = await fetch(`/api/check?chain=${k}&${q}`, { cache: 'no-store' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const name = META[k].short;
+    if (d.status === 'final')
+      out.innerHTML = `<span class="cv" style="color:var(--green)">FINAL</span>Block ${fmtNum(d.block)} is final on ${name} — the finalized head is ${fmtNum(d.finalized)}, past your block. It cannot be reorged away.`;
+    else if (d.status === 'pending')
+      out.innerHTML = `<span class="cv" style="color:var(--amber)">NOT YET</span>Block ${fmtNum(d.block)} on ${name} is included but not final — ${fmtNum(d.blocksToFinal)} blocks behind the finalized head${d.etaSec != null ? `, ≈${fmtSec(d.etaSec)} to go at the measured block time` : ''}${d.etaNote ? ' (' + esc(d.etaNote) + ')' : ''}. Confirmed ≠ final.`;
+    else if (d.status === 'pending-tx')
+      out.innerHTML = `<span class="cv" style="color:var(--amber)">PENDING TX</span>That transaction exists on ${name} but is not in a block yet — there is nothing to finalize. Wait for inclusion, then check again.`;
+    else if (d.status === 'not-found')
+      out.innerHTML = `<span class="cv" style="color:var(--red)">NOT FOUND</span>No transaction with that hash on ${name}. Check the hash and the chain — a hash from another chain will not appear here.`;
+    else if (d.status === 'not-seen')
+      out.innerHTML = `<span class="cv" style="color:var(--amber)">NOT SEEN YET</span>Block ${fmtNum(d.block)} is ahead of ${name}'s latest head (${fmtNum(d.latest)}) — it does not exist yet, or the endpoint has not seen it.`;
+    else if (d.status === 'checkpoint-based')
+      out.innerHTML = `<span class="cv">CHECKPOINT-BASED</span>${name} does not finalize per block — Bor blocks are finalized by Heimdall checkpoints (CONSTANT cadence ~20–30 min, a protocol parameter). There is no per-block final answer; a block is final once a checkpoint covering it lands. ${esc(d.note || '')}`;
+    else
+      out.innerHTML = `<span class="cv">COULD NOT CHECK</span>${esc(d.error || d.status || 'unknown error')}`;
+  } catch (e) {
+    out.innerHTML = `<span class="cv">UNAVAILABLE</span>The checker endpoint did not answer: ${esc(e.message)}`;
+  }
+}
+
+/* ---------- endpoint race panel ---------- */
+function renderEndpoints() {
+  const out = $('endpointsOut');
+  if (!endpointsData) { out.innerHTML = '<p class="note">Endpoint data unavailable.</p>'; return; }
+  const rows = (endpointsData.chains || []).filter((r) => activeKeys().includes(r.chain));
+  out.innerHTML = rows.map((r) => {
+    const eps = (r.endpoints || []).map((e) => {
+      const chip = !e.ok ? '<span class="chip down">Down</span>'
+        : (r.staleUrls || []).includes(e.url) ? '<span class="chip stale">Stale</span>' : '<span class="chip ok">OK</span>';
+      return `<tr><td>${esc(shortHost(e.url))}${e.kind === 'substrate' ? ' <span class="chip">substrate</span>' : ''}</td><td>${fmtNum(e.height)}</td><td>${e.latencyMs == null ? '—' : fmtNum(e.latencyMs) + ' ms'}</td><td>${chip}</td></tr>`;
+    }).join('');
+    return `<div class="lab" style="margin:12px 0 2px;color:${META[r.chain].acc}">${META[r.chain].short} — spread ${r.spreadBlocks == null ? 'n/a (single healthy endpoint)' : r.spreadBlocks + ' blocks'}</div>
+      <table class="simple"><tr><th>Endpoint</th><th>Head</th><th>Latency</th><th>Status</th></tr>${eps}</table>`;
+  }).join('') || '<p class="note">No endpoint data for this network yet.</p>';
+}
+async function pollEndpoints() {
+  try {
+    const r = await fetch('/api/endpoints', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    endpointsData = await r.json();
+    renderEndpoints();
+    renderAlerts();
+  } catch { /* panel keeps its last frame; page works without it */ }
+}
+
+/* ---------- Portaldot deep-dive ---------- */
+function renderDeep() {
+  if (activeNetwork !== 'testnet' || !latest) return;
+  const c = latest.chains.portaldot;
+  const s = latest.substrate;
+  if (c) $('deepEvm').textContent = c.finalityLagBlocks == null ? '—' : fmtNum(c.finalityLagBlocks);
+  if (s && s.ok) {
+    $('deepSub').textContent = fmtNum(s.lagBlocks);
+    $('deepAgree').innerHTML = s.agrees ? '<b style="color:var(--green)">agrees with EVM</b>' : '<b style="color:var(--amber)">differs from EVM</b>';
+  } else { $('deepSub').textContent = '—'; $('deepAgree').textContent = 'unavailable this sample'; }
+  if (pdEvents.length) {
+    $('deepEvents').innerHTML = pdEvents.map((e) =>
+      `<div class="feedrow" style="grid-template-columns:70px 1fr 1fr"><span>${e.time}</span><span>block ${fmtNum(e.block)} finalized</span><span>≈${fmtSec(e.fin)}</span></div>`).join('');
+  }
+  drawDeepChart();
+}
+function drawDeepChart() {
+  const cv = $('deepChart');
+  if (!cv || activeNetwork !== 'testnet') return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight || 170;
+  if (!w) return;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const evm = histSamples.map((s) => s.chains.portaldot && s.chains.portaldot.ok ? s.chains.portaldot.finalityLagBlocks : null);
+  const sub = histSamples.map((s) => s.substrate && s.substrate.ok ? s.substrate.lagBlocks : null);
+  const vals = [...evm, ...sub].filter((v) => v != null);
+  ctx.clearRect(0, 0, w, h);
+  if (vals.length < 2) {
+    ctx.fillStyle = '#8A94A3'; ctx.font = '11px "IBM Plex Mono", monospace';
+    ctx.fillText('COLLECTING SAMPLES…', 2, 18);
     return;
   }
-  const wait = Math.round(st.finalitySec.p95 * calcPreset.m);
-  out.innerHTML = `Wait <b>≈${fmtSec(wait)}</b> before treating a ${META[k].short} transfer as final for a ` +
-    `${calcPreset.label.toLowerCase()} — based on ${st.samples} live samples, p95 finality ` +
-    `${fmtSec(st.finalitySec.p95)} × ${calcPreset.m} safety margin.`;
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1;
+  const line = (pts, color) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath();
+    let started = false;
+    pts.forEach((v, i) => {
+      if (v == null) { started = false; return; }
+      const x = (i / Math.max(1, pts.length - 1)) * (w - 4) + 2;
+      const y = h - 10 - ((v - min) / span) * (h - 30);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  };
+  line(evm, '#FF5A36'); line(sub, '#7EE2A0');
+  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.fillStyle = '#FF5A36'; ctx.fillText('— EVM lag', 2, 11);
+  ctx.fillStyle = '#7EE2A0'; ctx.fillText('— Substrate lag', 70, 11);
+  ctx.fillStyle = '#8A94A3'; ctx.fillText('max ' + fmtNum(max) + ' · min ' + fmtNum(min) + ' blocks', 190, 11);
 }
 
 /* ---------- verify it yourself ---------- */
@@ -562,6 +946,102 @@ async function verifyChain(k, btn) {
   }
 }
 
+/* ---------- deploy FinalityAnchor yourself ---------- */
+let anchorInfo = null;
+(async () => {
+  try {
+    const r = await fetch('/api/anchor', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    anchorInfo = await r.json();
+    $('anchorInfo').innerHTML = `<dl class="kv">
+      <dt>Contract</dt><dd>${esc(anchorInfo.contract)}</dd>
+      <dt>Bytecode size</dt><dd>${fmtNum(anchorInfo.bytecodeBytes)} bytes</dd>
+      <dt>Target chain ID</dt><dd>${fmtNum(anchorInfo.chainId)} (${esc(anchorInfo.network)})</dd>
+      <dt>Source</dt><dd>${esc(anchorInfo.source)}</dd>
+    </dl>`;
+  } catch (e) {
+    $('anchorInfo').innerHTML = `<p class="note" style="color:var(--amber)">Contract data unavailable: ${esc(e.message)}</p>`;
+  }
+})();
+$('copyBytecode').addEventListener('click', (e) => {
+  if (anchorInfo) copyText(anchorInfo.bytecode, e.currentTarget);
+});
+$('deployBtn').addEventListener('click', async () => {
+  const out = $('deployOut');
+  const say = (html) => { out.innerHTML = `<p class="note" style="font-size:12.5px">${html}</p>`; };
+  if (!anchorInfo) { say('Contract bytecode has not loaded yet — try again in a moment.'); return; }
+  if (typeof window.ethereum === 'undefined') {
+    say('No browser wallet found. Install MetaMask (or another EVM wallet), fund it with tPOT from the Portaldot faucet in their Discord, then click Deploy again. ChainLens never handles keys — the wallet does everything.');
+    return;
+  }
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const from = accounts[0];
+    const chainHex = await window.ethereum.request({ method: 'eth_chainId' });
+    if (parseInt(chainHex, 16) !== anchorInfo.chainId) {
+      // tPOT decimals: 18 is the EVM-standard display value (unverified for tPOT).
+      const addParams = {
+        chainId: '0x' + (420420777).toString(16),
+        chainName: 'Portaldot V3 Testnet',
+        rpcUrls: ['https://test-evm-rpc-v3.portaldot.dev'],
+        nativeCurrency: { name: 'tPOT', symbol: 'tPOT', decimals: 18 },
+      };
+      say(`Your wallet is on chain ${parseInt(chainHex, 16)}, not Portaldot V3 (${anchorInfo.chainId}). Asking it to switch/add the network: <code>${esc(JSON.stringify(addParams))}</code>`);
+      try { await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: addParams.chainId }] }); }
+      catch { await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [addParams] }); }
+    }
+    say('Sending the deployment transaction from your wallet — confirm it there…');
+    const txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{ from, data: anchorInfo.bytecode }],
+    });
+    say(`Deployment sent: tx <code>${esc(txHash)}</code>. Waiting for the receipt to read the contract address…`);
+    const poll = setInterval(async () => {
+      try {
+        const rcpt = await window.ethereum.request({ method: 'eth_getTransactionReceipt', params: [txHash] });
+        if (rcpt) {
+          clearInterval(poll);
+          say(`Mined. Contract address: <code>${esc(rcpt.contractAddress || '(see receipt)')}</code> — tx <code>${esc(txHash)}</code>. You deployed FinalityAnchor from your own wallet; ChainLens only handed you the bytecode.`);
+        }
+      } catch { /* keep waiting */ }
+    }, 4000);
+    setTimeout(() => clearInterval(poll), 180000);
+  } catch (e) {
+    say('Wallet error: ' + esc(e.message || String(e)));
+  }
+});
+
+/* ---------- API explorer ---------- */
+function buildExplorer() {
+  const first = activeKeys()[0];
+  const rows = [
+    ['Status (all chains, live)', '/api/status'],
+    ['Metrics document (chainlens-metrics/1)', '/api/metrics'],
+    ['History (5 samples)', '/api/history?n=5'],
+    ['History CSV download', '/api/history.csv'],
+    [`Fresh sample — ${META[first].short}`, `/api/sample?chain=${first}`],
+    ['Endpoint race', '/api/endpoints'],
+    ['Finality check — Portaldot block 1 (sample)', '/api/check?chain=portaldot&block=1'],
+    ['FinalityAnchor bytecode + ABI', '/api/anchor'],
+    ['Badge SVG — Portaldot', '/api/badge.svg?chain=portaldot'],
+  ];
+  $('explorerRows').innerHTML = rows.map(([label, url], i) => {
+    const isLink = url.endsWith('.csv') || url.includes('badge.svg');
+    return `<div class="erow"><span style="min-width:230px">${esc(label)}</span><code class="snip">${esc(url)}</code>` +
+      (isLink ? `<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Open</a>` : `<button class="btn" data-try="${i}">Try</button>`) + '</div>';
+  }).join('');
+  $('explorerRows').querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', async () => {
+    const url = rows[Number(b.dataset.try)][1];
+    const pre = $('explorerOut');
+    pre.style.display = ''; pre.textContent = 'Loading ' + url + ' …';
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      const txt = await r.text();
+      pre.textContent = txt.slice(0, 1200) + (txt.length > 1200 ? '\n… (truncated)' : '');
+    } catch (e) { pre.textContent = 'Unavailable: ' + e.message; }
+  }));
+}
+
 /* ---------- detail drawer ---------- */
 let drawerKey = null;
 function openDrawer(k) {
@@ -597,16 +1077,20 @@ function fillDrawer(k) {
         <dt>finality max</dt><dd>${fmtSec(st.finalitySec.max)}</dd>
         <dt>block time avg</dt><dd>${fmtSec(st.blockTimeSecAvg)}</dd>
         <dt>gas avg</dt><dd>${fmtGas(st.gasWeiAvg)}</dd>
+        <dt>gas p50 / p95</dt><dd>${st.gasStats ? fmtGas(st.gasStats.p50) + ' / ' + fmtGas(st.gasStats.p95) : '—'}</dd>
         <dt>reliability</dt><dd>${st.reliabilityPct == null ? '—' : st.reliabilityPct + '%'}</dd>
       </dl>`
-    : `<p class="note">${k === 'amoy'
+    : `<p class="note">${NA.has(k)
         ? 'Finality is checkpoint-based (Heimdall), so there are no per-sample finality statistics — reporting an average here would mean inventing one.'
         : 'Not enough samples yet this session.'}</p>
       ${st ? `<dl class="kv"><dt>samples</dt><dd>${st.samples}</dd><dt>reliability</dt><dd>${st.reliabilityPct == null ? '—' : st.reliabilityPct + '%'}</dd></dl>` : ''}`;
   $('drawerBody').innerHTML = `
     <div class="sect2"><span class="lab">Now</span>
-      <div class="big" style="margin-top:8px"><span class="bignum">${k === 'amoy' ? 'n/a' : (c ? fmtSec(c.finalitySec) : '—')}</span>
+      <div class="big" style="margin-top:8px"><span class="bignum">${NA.has(k) ? 'n/a' : (c ? fmtSec(c.finalitySec) : '—')}</span>
       <span class="lab biglab">Time to finality · lag ${c && c.finalityLagBlocks != null ? fmtNum(c.finalityLagBlocks) + ' blocks' : '—'} · height ${c ? fmtNum(c.height) : '—'}</span></div>
+    </div>
+    <div class="sect2"><span class="lab">Finality Index</span>
+      <p class="note" style="margin-top:8px">${st && st.finalityIndex != null ? `<b style="color:var(--ink);font-size:19px">${st.finalityIndex}/100</b> — ` : ''}Finality Index — log scale: 5s = 100, 30 min = 0, from this session's average finality.${NA.has(k) ? ' This chain is checkpoint-based, so its index is n/a.' : ''}</p>
     </div>
     <div class="sect2"><span class="lab">Session statistics</span><div style="margin-top:9px">${finStats}</div></div>
     <div class="sect2"><span class="lab">Finality lag history (blocks)</span>
@@ -664,7 +1148,6 @@ function setupCanvas(cv) {
   ctx.scale(dpr, dpr);
   return { ctx, w, h };
 }
-
 function drawChart(cv, series, opts) {
   const { ctx, w, h } = setupCanvas(cv);
   const padL = 78, padR = 8, padT = 8, padB = 18;
@@ -685,7 +1168,6 @@ function drawChart(cv, series, opts) {
   const pad = (yMax - yMin) * 0.08; yMin -= pad; yMax += pad;
   const X = (ms) => padL + ((ms - xMin) / Math.max(1, xMax - xMin)) * iw;
   const Y = (v) => padT + ih - ((t(v) - yMin) / (yMax - yMin)) * ih;
-  // gridlines + y labels
   ctx.font = '10px "IBM Plex Mono", monospace';
   const ticks = opts.log ? [0, 10, 100, 1000] : [0, 0.25, 0.5, 0.75, 1].map((f) => {
     const lo = Math.min(...all.map((p) => p[1])), hi = Math.max(...all.map((p) => p[1]));
@@ -699,13 +1181,11 @@ function drawChart(cv, series, opts) {
     ctx.fillText(opts.yFmt(tvTick), padL - 6, y + 3);
   }
   ctx.textAlign = 'left';
-  // x labels: first / last sample time
   ctx.fillStyle = '#8A94A3';
   const tFmt = (ms) => new Date(ms).toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata' });
   ctx.fillText(tFmt(xMin), padL, h - 5);
   const last = tFmt(xMax);
   ctx.textAlign = 'right'; ctx.fillText(last, padL + iw, h - 5); ctx.textAlign = 'left';
-  // lines
   for (const s of series) {
     ctx.strokeStyle = s.color; ctx.lineWidth = 1.6; ctx.beginPath();
     let started = false;
@@ -717,14 +1197,14 @@ function drawChart(cv, series, opts) {
     ctx.stroke();
   }
 }
-
 function drawCharts() {
-  const finSeries = ORDER.map((k) => ({
+  const keys = activeKeys();
+  const finSeries = keys.map((k) => ({
     color: META[k].acc,
     pts: histSamples.map((s) => [Date.parse(s.ts), s.chains[k] && s.chains[k].ok ? s.chains[k].finalitySec : null]),
   }));
   drawChart($('chartFin'), finSeries, { log: $('logToggle').checked, yFmt: (v) => fmtSec(v) });
-  const gasSeries = ORDER.map((k) => ({
+  const gasSeries = keys.map((k) => ({
     color: META[k].acc,
     pts: histSamples.map((s) => [Date.parse(s.ts), s.chains[k] && s.chains[k].ok ? s.chains[k].gasWei : null]),
   }));
@@ -734,7 +1214,7 @@ $('logToggle').addEventListener('change', drawCharts);
 let resizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { drawCharts(); if (drawerKey) drawSpark(drawerKey); }, 180);
+  resizeTimer = setTimeout(() => { drawCharts(); if (drawerKey) drawSpark(drawerKey); drawDeepChart(); }, 180);
 });
 
 /* ---------- polling ---------- */
@@ -752,16 +1232,18 @@ async function pollHistory() {
     const r = await fetch('/api/history?n=200', { cache: 'no-store' });
     if (!r.ok) return;
     histSamples = (await r.json()).samples || [];
-    const n = Math.max(0, ...ORDER.map((k) => (stats && stats[k]?.samples) || 0));
-    if (!n && histSamples.length) $('sampleCount').textContent = histSamples.length;
     drawCharts();
     if (drawerKey) drawSpark(drawerKey);
+    drawDeepChart();
   } catch { /* charts keep their last frame */ }
 }
+buildStructures();
 pollStatus();
 pollHistory();
+pollEndpoints();
 setInterval(pollStatus, 6000);
 setInterval(pollHistory, 30000);
+setInterval(pollEndpoints, 30000);
 </script>
 </body>
 </html>
