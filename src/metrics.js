@@ -53,6 +53,24 @@ export function shapeMetrics(sample) {
   return doc;
 }
 
+// Finality Index: log-scale score 0..100 from average finality seconds.
+// 5s or faster = 100, 30 min (1800s) or slower = 0, linear in log10 between.
+export function finalityIndex(finalitySec) {
+  if (finalitySec == null || !Number.isFinite(finalitySec)) return null;
+  const lo = Math.log10(5), hi = Math.log10(1800);
+  const v = Math.round((100 * (hi - Math.log10(finalitySec))) / (hi - lo));
+  return Math.max(0, Math.min(100, v));
+}
+
+// Plain-language status of a block relative to latest/finalized heads.
+export function finalityStatus(block, latest, finalized) {
+  if (block == null || latest == null || finalized == null) return 'unknown';
+  if (!Number.isFinite(block) || !Number.isFinite(latest) || !Number.isFinite(finalized)) return 'unknown';
+  if (block > latest) return 'not-seen';
+  if (block <= finalized) return 'final';
+  return 'pending';
+}
+
 // Session statistics over the history ring, per chain. Only ok samples
 // feed the metric stats; reliability counts every sample in the window.
 // finalitySec is null as a whole for chains that never report a measured
@@ -78,13 +96,18 @@ export function summarize(history) {
   };
   const out = {};
   for (const [key, a] of Object.entries(acc)) {
+    const finAvg = a.fin.length ? avg(a.fin) : null;
     out[key] = {
       samples: a.total,
       finalitySec: a.fin.length
-        ? { min: Math.min(...a.fin), avg: avg(a.fin), p95: pctl(a.fin, 95), max: Math.max(...a.fin) }
+        ? { min: Math.min(...a.fin), avg: finAvg, p95: pctl(a.fin, 95), max: Math.max(...a.fin) }
         : null,
       blockTimeSecAvg: avg(a.bt),
       gasWeiAvg: a.gas.length ? Math.round(avg(a.gas)) : null,
+      gasStats: a.gas.length
+        ? { avg: Math.round(avg(a.gas)), p50: pctl(a.gas, 50), p95: pctl(a.gas, 95), max: Math.max(...a.gas) }
+        : null,
+      finalityIndex: finAvg != null ? finalityIndex(finAvg) : null,
       reliabilityPct: a.total ? +((a.ok / a.total) * 100).toFixed(1) : null,
     };
   }
@@ -112,7 +135,7 @@ export function historyToCsv(history) {
 
 // Shields-style SVG badge for one chain, from its latest sample. The value
 // is always the measured finality (or an honest state) — never a constant.
-const BADGE_ACCENTS = { portaldot: '#FF5A36', sepolia: '#6E8FB2', base: '#4D7CFE', amoy: '#9B6BFF' };
+const BADGE_ACCENTS = { portaldot: '#FF5A36', sepolia: '#6E8FB2', base: '#4D7CFE', amoy: '#9B6BFF', arbitrum: '#28A0F0', optimism: '#FF0420', ethereum: '#627EEA', 'base-mainnet': '#4D7CFE', 'polygon-mainnet': '#8247E5' };
 const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export function badgeSvg(cfg, c) {

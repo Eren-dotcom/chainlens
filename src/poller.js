@@ -6,7 +6,7 @@
 // reads. Nothing is signed, nothing is sent.
 
 import { rpcCall, hexToInt } from './rpc.js';
-import { blockTimeFromWindow, finalityLag, finalitySeconds, pickWinners } from './metrics.js';
+import { blockTimeFromWindow, finalityLag, finalitySeconds, pickWinners, finalityStatus } from './metrics.js';
 import { CHAINS } from './chains.js';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
@@ -237,6 +237,105 @@ export async function sampleChain(key) {
   const data = { chain: key, sampledAt: new Date().toISOString(), computed: r, raw };
   sampleCache.set(key, { at: Date.now(), data });
   return data;
+}
+
+// --- v3: endpoint race -------------------------------------------------
+// For every chain, race all configured endpoints with a single attempt:
+// who is tallest, who is stale, who is down. Never throws — failures are data.
+let raceCache = null; // { at, data }
+export async function raceEndpoints() {
+  if (raceCache && Date.now() - raceCache.at < 15000) return raceCache.data;
+  const chains = [];
+  for (const cfg of CHAINS) {
+    const eps = [];
+    const jobs = (cfg.endpoints || [cfg.rpc]).map(async (url) => {
+      const t0 = Date.now();
+      try {
+        const hex = await rpcCall(url, 'eth_blockNumber', [], 4000, 1);
+        const height = hexToInt(hex);
+        if (height == null) throw new Error('malformed block number');
+        return { url, height, latencyMs: Date.now() - t0, ok: true, error: null };
+      } catch (e) {
+        return { url, height: null, latencyMs: Date.now() - t0, ok: false, error: e.message };
+      }
+    });
+    eps.push(...(await Promise.all(jobs)));
+    if (cfg.substrateRpc) {
+      const t0 = Date.now();
+      try {
+        const head = await rpcCall(cfg.substrateRpc, 'chain_getHeader', [], 4000, 1);
+        const height = hexToInt(head.number);
+        if (height == null) throw new Error('malformed substrate header');
+        eps.push({ url: cfg.substrateRpc, kind: 'substrate', height, latencyMs: Date.now() - t0, ok: true, error: null });
+      } catch (e) {
+        eps.push({ url: cfg.substrateRpc, kind: 'substrate', height: null, latencyMs: Date.now() - t0, ok: false, error: e.message });
+      }
+    }
+    const okHeights = eps.filter((e) => e.ok && e.height != null).map((e) => e.height);
+    const maxH = okHeights.length ? Math.max(...okHeights) : null;
+    const minH = okHeights.length ? Math.min(...okHeights) : null;
+    chains.push({
+      chain: cfg.key,
+      endpoints: eps,
+      spreadBlocks: okHeights.length >= 2 ? maxH - minH : null,
+      staleUrls: maxH != null ? eps.filter((e) => e.ok && e.height != null && maxH - e.height > 5).map((e) => e.url) : [],
+    });
+  }
+  const data = { sampledAt: new Date().toISOString(), chains };
+  raceCache = { at: Date.now(), data };
+  return data;
+}
+
+// --- v3: "is my block final yet?" checker --------------------------------
+// Fresh reads on the chain's primary RPC. Never throws to the route.
+const checkCache = new Map(); // key -> { at, data }
+const checkPrevObs = {}; // key -> last { height, timestamp }
+export async function checkFinality(key, query) {
+  const cfg = CHAINS.find((c) => c.key === key);
+  if (!cfg) return { chain: key, status: 'unknown-chain', error: 'unknown chain' };
+  const ck = key + ':' + (query.tx ? 'tx:' + query.tx.toLowerCase() : 'block:' + query.block);
+  const hit = checkCache.get(ck);
+  if (hit && Date.now() - hit.at < 6000) return hit.data;
+  const done = (data) => { checkCache.set(ck, { at: Date.now(), data }); return data; };
+  try {
+    if (cfg.finalityTag === false && !query.tx) {
+      const latestBlk = await rpcCall(cfg.rpc, 'eth_getBlockByNumber', ['latest', false], 6000, 1).catch(() => null);
+      return done({ chain: key, block: query.block ?? null, latest: latestBlk ? hexToInt(latestBlk.number) : null, finalized: null, status: 'checkpoint-based', note: cfg.finalityNote || null, blocksToFinal: null, etaSec: null, sampledAt: new Date().toISOString() });
+    }
+    let block = query.block ?? null;
+    if (query.tx) {
+      const tx = await rpcCall(cfg.rpc, 'eth_getTransactionByHash', [query.tx], 6000, 1).catch(() => null);
+      if (!tx) return done({ chain: key, block: null, latest: null, finalized: null, status: 'not-found', blocksToFinal: null, etaSec: null, sampledAt: new Date().toISOString() });
+      if (tx.blockNumber == null) return done({ chain: key, block: null, latest: null, finalized: null, status: 'pending-tx', blocksToFinal: null, etaSec: null, sampledAt: new Date().toISOString() });
+      block = hexToInt(tx.blockNumber);
+      if (cfg.finalityTag === false) {
+        const latestBlk = await rpcCall(cfg.rpc, 'eth_getBlockByNumber', ['latest', false], 6000, 1).catch(() => null);
+        return done({ chain: key, block, latest: latestBlk ? hexToInt(latestBlk.number) : null, finalized: null, status: 'checkpoint-based', note: cfg.finalityNote || null, blocksToFinal: null, etaSec: null, sampledAt: new Date().toISOString() });
+      }
+    }
+    const [latestBlk, finBlk] = await Promise.all([
+      rpcCall(cfg.rpc, 'eth_getBlockByNumber', ['latest', false], 6000, 1),
+      rpcCall(cfg.rpc, 'eth_getBlockByNumber', ['finalized', false], 6000, 1).catch(() => null),
+    ]);
+    const latest = hexToInt(latestBlk.number);
+    const ts = hexToInt(latestBlk.timestamp);
+    const finalized = finBlk ? hexToInt(finBlk.number) : null;
+    // Measure block time with this checker's own previous observation.
+    let blockTime = null;
+    const prev = checkPrevObs[key];
+    if (prev && latest != null && ts != null) blockTime = blockTimeFromWindow({ height: latest, timestamp: ts }, prev);
+    if (latest != null && ts != null && (!prev || latest > prev.height)) checkPrevObs[key] = { height: latest, timestamp: ts };
+    const status = finalityStatus(block, latest, finalized);
+    const blocksToFinal = status === 'pending' && finalized != null ? Math.max(0, block - finalized) : (status === 'final' ? 0 : null);
+    let etaSec = null; let etaNote = null;
+    if (status === 'pending') {
+      if (blockTime != null && blocksToFinal != null) etaSec = Math.round(blocksToFinal * blockTime);
+      else etaNote = 'needs a second check to measure block time';
+    }
+    return done({ chain: key, block, latest, finalized, status, blocksToFinal, etaSec, ...(etaNote ? { etaNote } : {}), sampledAt: new Date().toISOString() });
+  } catch (e) {
+    return done({ chain: key, block: query.block ?? null, latest: null, finalized: null, status: 'error', error: e.message, blocksToFinal: null, etaSec: null, sampledAt: new Date().toISOString() });
+  }
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);

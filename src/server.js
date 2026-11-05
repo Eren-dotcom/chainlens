@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { Poller, sampleChain } from './poller.js';
+import { Poller, sampleChain, raceEndpoints, checkFinality } from './poller.js';
 import { shapeMetrics, summarize, historyToCsv, badgeSvg } from './metrics.js';
 import { CHAINS } from './chains.js';
 
@@ -12,6 +12,18 @@ const portRaw = Number(process.env.PORT || 4178);
 const PORT = Number.isFinite(portRaw) && portRaw > 0 && portRaw < 65536 ? portRaw : 4178;
 
 const poller = new Poller().start();
+let anchorData = null;
+try {
+  const bcRaw = await readFile(join(__dirname, '..', 'contracts', 'FinalityAnchor.bytecode.txt'), 'utf8');
+  const abiRaw = await readFile(join(__dirname, '..', 'contracts', 'FinalityAnchor.abi.json'), 'utf8');
+  const bytecode = '0x' + bcRaw.trim();
+  anchorData = {
+    contract: 'FinalityAnchor', chainId: 420420777, network: 'Portaldot V3 Testnet',
+    rpc: 'https://test-evm-rpc-v3.portaldot.dev', bytecode,
+    bytecodeBytes: (bytecode.length - 2) / 2, abi: JSON.parse(abiRaw),
+    source: 'contracts/FinalityAnchor.sol', statusDoc: 'docs/ANCHOR-STATUS.md',
+  };
+} catch { anchorData = null; }
 let indexHtml;
 try {
   indexHtml = await readFile(join(__dirname, '..', 'public', 'index.html'), 'utf8');
@@ -62,6 +74,27 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 500, { error: e.message });
     }
   }
+  if (url.pathname === '/api/endpoints') {
+    try { return sendJson(res, 200, await raceEndpoints()); }
+    catch (e) { return sendJson(res, 500, { error: e.message }); }
+  }
+  if (url.pathname === '/api/check') {
+    const key = url.searchParams.get('chain');
+    const blockRaw = url.searchParams.get('block');
+    const tx = url.searchParams.get('tx');
+    if (!CHAINS.some((c) => c.key === key)) return sendJson(res, 400, { error: 'unknown chain' });
+    if ((blockRaw == null) === (tx == null)) return sendJson(res, 400, { error: 'exactly one of block or tx is required' });
+    if (tx != null) {
+      if (!/^0x[0-9a-fA-F]{64}$/.test(tx)) return sendJson(res, 400, { error: 'tx must be a 0x-prefixed 64-hex transaction hash' });
+      return sendJson(res, 200, await checkFinality(key, { tx }));
+    }
+    if (!/^\d+$/.test(blockRaw)) return sendJson(res, 400, { error: 'block must be a non-negative integer' });
+    return sendJson(res, 200, await checkFinality(key, { block: Number(blockRaw) }));
+  }
+  if (url.pathname === '/api/anchor') {
+    if (!anchorData) return sendJson(res, 500, { error: 'anchor contract files missing' });
+    return sendJson(res, 200, anchorData);
+  }
   if (url.pathname === '/' || url.pathname === '/index.html') {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     return res.end(indexHtml);
@@ -72,5 +105,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`ChainLens dashboard: http://localhost:${PORT}`);
-  console.log('Watching Portaldot V3, Sepolia, Base Sepolia, Polygon Amoy (read-only RPC)');
+  console.log('Watching 9 chains — Portaldot V3, Sepolia, Base Sepolia, Amoy, Arbitrum Sepolia, OP Sepolia, Ethereum, Base, Polygon (read-only RPC)');
 });

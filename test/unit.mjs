@@ -1,7 +1,8 @@
 // Offline unit tests for the metric math. Run: npm test
 import assert from 'node:assert';
-import { blockTimeFromWindow, finalityLag, finalitySeconds, pickWinners, shapeMetrics, summarize, historyToCsv, CSV_HEADER, badgeSvg } from '../src/metrics.js';
+import { blockTimeFromWindow, finalityLag, finalitySeconds, pickWinners, shapeMetrics, summarize, historyToCsv, CSV_HEADER, badgeSvg, finalityIndex, finalityStatus } from '../src/metrics.js';
 import { hexToInt } from '../src/rpc.js';
+import { CHAINS } from '../src/chains.js';
 
 // hexToInt: strict quantity parsing — null (never NaN) for malformed input
 assert.equal(hexToInt('0x10'), 16);
@@ -121,5 +122,62 @@ assert.ok(badge.includes('#FF5A36'));
 assert.ok(badgeSvg(amoyCfg, { ok: true, finalitySec: null }).includes('finality n/a'));
 assert.ok(badgeSvg(pdCfg, null).includes('finality no data'));
 assert.ok(badgeSvg(pdCfg, { ok: true, finalitySec: 780 }).includes('finality ≈13m'));
+
+// --- v3: finalityIndex ---
+assert.equal(finalityIndex(5), 100);
+assert.equal(finalityIndex(1800), 0);
+assert.equal(finalityIndex(null), null);
+assert.equal(finalityIndex(NaN), null);
+assert.equal(finalityIndex(2), 100); // clamped
+assert.equal(finalityIndex(99999), 0); // clamped
+const midIdx = finalityIndex(95);
+assert.ok(midIdx > 40 && midIdx < 60, `finalityIndex(95)=${midIdx} should be 40..60`);
+assert.ok(finalityIndex(10) > finalityIndex(100) && finalityIndex(100) > finalityIndex(1000)); // monotonic decreasing
+
+// --- v3: finalityStatus — all four branches ---
+assert.equal(finalityStatus(5, 10, 8), 'final');
+assert.equal(finalityStatus(8, 10, 8), 'final');
+assert.equal(finalityStatus(9, 10, 8), 'pending');
+assert.equal(finalityStatus(11, 10, 8), 'not-seen');
+assert.equal(finalityStatus(null, 10, 8), 'unknown');
+assert.equal(finalityStatus(5, null, 8), 'unknown');
+assert.equal(finalityStatus(5, 10, null), 'unknown');
+assert.equal(finalityStatus(NaN, 10, 8), 'unknown');
+
+// --- v3: summarize gasStats + finalityIndex ---
+// gas fixture: 100,200,...,1000 -> p50 nearest-rank = 500, p95 = 1000, avg 550
+const hist3 = [];
+for (let i = 1; i <= 10; i++) {
+  hist3.push({ ts: `t${i}`, chains: {
+    g: { ok: true, finalitySec: 12, blockTimeSec: 6, gasWei: i * 100 },
+    n: { ok: true, finalitySec: null, blockTimeSec: 2, gasWei: 7 },
+  } });
+}
+const sum3 = summarize(hist3);
+assert.equal(sum3.g.gasStats.avg, 550);
+assert.equal(sum3.g.gasStats.p50, 500);
+assert.equal(sum3.g.gasStats.p95, 1000);
+assert.equal(sum3.g.gasStats.max, 1000);
+assert.equal(sum3.g.finalityIndex, finalityIndex(12));
+assert.equal(sum3.n.finalityIndex, null); // n/a chain: no invented index
+assert.equal(sum3.n.gasStats.avg, 7);
+assert.deepEqual(summarize([{ ts: 'x', chains: { z: { ok: false, finalitySec: null, blockTimeSec: null, gasWei: null } } }]).z.gasStats, null);
+
+// --- v3: chains config integrity ---
+const keys = CHAINS.map((c) => c.key);
+assert.equal(new Set(keys).size, keys.length, 'chain keys unique');
+assert.equal(new Set(CHAINS.map((c) => c.chainId)).size, CHAINS.length, 'chainIds unique');
+assert.equal(CHAINS.length, 9);
+for (const c of CHAINS) {
+  assert.ok(c.network === 'testnet' || c.network === 'mainnet', `${c.key} has network`);
+  assert.ok(Array.isArray(c.endpoints) && c.endpoints.length >= 1, `${c.key} has endpoints`);
+  assert.equal(c.endpoints[0], c.rpc, `${c.key} endpoints[0] === rpc`);
+}
+
+// --- v3: badgeSvg new chains ---
+const arbCfg = CHAINS.find((c) => c.key === 'arbitrum');
+assert.ok(badgeSvg(arbCfg, { ok: true, finalitySec: 900 }).includes('ARBITRUM SEPOLIA'));
+const polyCfg = CHAINS.find((c) => c.key === 'polygon-mainnet');
+assert.ok(badgeSvg(polyCfg, { ok: true, finalitySec: null }).includes('finality n/a'));
 
 console.log('unit tests: PASS');
