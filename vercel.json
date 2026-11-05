@@ -1,1 +1,1 @@
-{"functions":{"api/*.js":{"maxDuration":60}},"rewrites":[{"destination":"/public/index.html","source":"/"}]}
+{"functions":{"api/*.js":{"maxDuration":60}},"rewrites":[{"destination":"/public/index.html","source":"/"},{"destination":"/api/badge","source":"/api/badge.svg"},{"destination":"/api/history-csv","source":"/api/history.csv"}]}

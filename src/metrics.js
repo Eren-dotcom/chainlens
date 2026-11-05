@@ -53,6 +53,88 @@ export function shapeMetrics(sample) {
   return doc;
 }
 
+// Session statistics over the history ring, per chain. Only ok samples
+// feed the metric stats; reliability counts every sample in the window.
+// finalitySec is null as a whole for chains that never report a measured
+// finality (Amoy) — no invented numbers.
+export function summarize(history) {
+  const acc = {};
+  for (const s of history || []) {
+    for (const [key, c] of Object.entries(s.chains || {})) {
+      const a = (acc[key] ||= { total: 0, ok: 0, fin: [], bt: [], gas: [] });
+      a.total += 1;
+      if (!c || !c.ok) continue;
+      a.ok += 1;
+      if (Number.isFinite(c.finalitySec)) a.fin.push(c.finalitySec);
+      if (Number.isFinite(c.blockTimeSec)) a.bt.push(c.blockTimeSec);
+      if (Number.isFinite(c.gasWei)) a.gas.push(c.gasWei);
+    }
+  }
+  const avg = (xs) => (xs.length ? +(xs.reduce((x, y) => x + y, 0) / xs.length).toFixed(2) : null);
+  const pctl = (xs, p) => {
+    if (!xs.length) return null;
+    const srt = [...xs].sort((x, y) => x - y);
+    return srt[Math.max(0, Math.ceil((p / 100) * srt.length) - 1)]; // nearest-rank
+  };
+  const out = {};
+  for (const [key, a] of Object.entries(acc)) {
+    out[key] = {
+      samples: a.total,
+      finalitySec: a.fin.length
+        ? { min: Math.min(...a.fin), avg: avg(a.fin), p95: pctl(a.fin, 95), max: Math.max(...a.fin) }
+        : null,
+      blockTimeSecAvg: avg(a.bt),
+      gasWeiAvg: a.gas.length ? Math.round(avg(a.gas)) : null,
+      reliabilityPct: a.total ? +((a.ok / a.total) * 100).toFixed(1) : null,
+    };
+  }
+  return out;
+}
+
+// Flat CSV export of the history ring: one row per chain per sample.
+export const CSV_HEADER =
+  'timestamp,chain,height,finalizedHeight,lagBlocks,finalitySec,blockTimeSec,gasWei,txCount,gasUsed,rpcLatencyMs';
+
+export function historyToCsv(history) {
+  const rows = [CSV_HEADER];
+  const cell = (v) => (v == null ? '' : v);
+  for (const s of history || []) {
+    for (const [key, c] of Object.entries(s.chains || {})) {
+      rows.push([
+        s.ts, key, cell(c.height), cell(c.finalizedHeight), cell(c.finalityLagBlocks),
+        cell(c.finalitySec), cell(c.blockTimeSec), cell(c.gasWei), cell(c.txCount),
+        cell(c.gasUsed), cell(c.rpcLatencyMs),
+      ].join(','));
+    }
+  }
+  return rows.join('\n') + '\n';
+}
+
+// Shields-style SVG badge for one chain, from its latest sample. The value
+// is always the measured finality (or an honest state) — never a constant.
+const BADGE_ACCENTS = { portaldot: '#FF5A36', sepolia: '#6E8FB2', base: '#4D7CFE', amoy: '#9B6BFF' };
+const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+export function badgeSvg(cfg, c) {
+  const label = `CHAINLENS · ${cfg.short.toUpperCase()}`;
+  let value;
+  if (!c || !c.ok) value = 'finality no data';
+  else if (cfg.finalityTag === false) value = 'finality n/a';
+  else if (c.finalitySec == null) value = 'finality pending';
+  else if (c.finalitySec < 120) value = `finality ≈${Math.round(c.finalitySec)}s`;
+  else value = `finality ≈${Math.round(c.finalitySec / 60)}m`;
+  const accent = BADGE_ACCENTS[cfg.key] || '#4D7CFE';
+  const lw = Math.ceil(label.length * 6.4) + 12;
+  const vw = Math.ceil(value.length * 6.4) + 12;
+  const w = lw + vw;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="20" role="img" aria-label="${escXml(label)}: ${escXml(value)}">
+<rect width="${lw}" height="20" fill="#0D1117"/>
+<rect x="${lw}" width="${vw}" height="20" fill="${accent}"/>
+<text x="${lw / 2}" y="14" fill="#E8EDF2" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" text-anchor="middle">${escXml(label)}</text>
+<text x="${lw + vw / 2}" y="14" fill="#07090C" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" font-weight="bold" text-anchor="middle">${escXml(value)}</text>
+</svg>`;
+}
+
 // Pick the winning chain per category from a { key: chainSample } map.
 // Chains with ok=false or a null metric are skipped. Ties keep the first.
 export function pickWinners(chains) {

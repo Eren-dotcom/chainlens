@@ -25,10 +25,13 @@ export const CONFIG = {
 async function sampleEvmChain(cfg, prev) {
   const out = {
     key: cfg.key, name: cfg.name, chainId: cfg.chainId, ok: false,
+    endpoint: cfg.rpc,
     height: null, blockTimeSec: null, finalizedHeight: null,
     finalityLagBlocks: null, finalitySec: null, gasWei: null, error: null,
+    txCount: null, gasUsed: null, rpcLatencyMs: null,
     finalityNote: cfg.finalityNote || null, finalitySkew: false, chainIdVerified: false,
   };
+  const t0 = Date.now(); // wall time of this chain's whole sample (incl. retries)
   try {
     // One parallel batch: the finalized head must be read at the same
     // moment as the latest head, or the lag between them is understated.
@@ -56,6 +59,16 @@ async function sampleEvmChain(cfg, prev) {
         }
       }
     }
+    out.txCount = Array.isArray(latest.transactions) ? latest.transactions.length : null;
+    out.gasUsed = hexToInt(latest.gasUsed);
+    // Trimmed raw payload, kept only for the on-demand /api/sample path
+    // (stripped before a sample enters history): anyone can recompute our
+    // numbers from exactly what the RPC returned.
+    out._raw = {
+      latest: { number: latest.number, timestamp: latest.timestamp, gasUsed: latest.gasUsed, txCount: out.txCount },
+      finalized: finalized ? { number: finalized.number } : null,
+      gasPrice: gas ?? null,
+    };
     out._obs = { height: out.height, timestamp: ts };
     if (prev) out.blockTimeSec = blockTimeFromWindow(out._obs, prev);
     if (finalized) out.finalizedHeight = hexToInt(finalized.number);
@@ -65,9 +78,11 @@ async function sampleEvmChain(cfg, prev) {
     out.finalityLagBlocks = finalityLag(out.height, out.finalizedHeight);
     out.finalitySec = finalitySeconds(out.finalityLagBlocks, out.blockTimeSec);
     out.gasWei = gas != null ? hexToInt(gas) : null;
+    out.rpcLatencyMs = Date.now() - t0;
     out.ok = true;
   } catch (e) {
     out.error = e.message;
+    out.rpcLatencyMs = Date.now() - t0;
   }
   return out;
 }
@@ -155,6 +170,7 @@ export class Poller {
         delete this.prevObs[r.key];
       }
       delete r._obs;
+      delete r._raw;
       r.reliabilityPct = st.total ? +((st.ok / st.total) * 100).toFixed(1) : null;
       chains[r.key] = r;
     }
@@ -196,6 +212,31 @@ export class Poller {
       latest: this.latest,
     };
   }
+}
+
+// On-demand single-chain sample for /api/sample: one fresh read of one
+// chain, returning the computed fields plus the trimmed raw RPC payload
+// they were computed from, so anyone can verify the math. Cached per chain
+// for 10s — a burst of verify clicks must not hammer the public RPCs.
+// Block time uses this path's own previous observation, like the poller.
+const sampleCache = new Map(); // key -> { at, data }
+const samplePrevObs = {}; // key -> last { height, timestamp }
+
+export async function sampleChain(key) {
+  const cfg = CHAINS.find((c) => c.key === key);
+  if (!cfg) return null;
+  const hit = sampleCache.get(key);
+  if (hit && Date.now() - hit.at < 10000) return hit.data;
+  const r = await sampleEvmChain(cfg, samplePrevObs[key]);
+  if (r.ok && r._obs && (!samplePrevObs[key] || r._obs.height > samplePrevObs[key].height)) {
+    samplePrevObs[key] = r._obs;
+  }
+  const raw = r._raw || null;
+  delete r._obs;
+  delete r._raw;
+  const data = { chain: key, sampledAt: new Date().toISOString(), computed: r, raw };
+  sampleCache.set(key, { at: Date.now(), data });
+  return data;
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
