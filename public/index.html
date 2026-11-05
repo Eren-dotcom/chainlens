@@ -64,7 +64,7 @@
   <div id="finChart"></div>
   <div id="finNote" style="color:var(--dim); font-size:12.5px; margin-top:6px;"></div>
 
-  <h2>Chains — sampled every 12 seconds</h2>
+  <h2 id="samplingHz">Chains — sampled every 12 seconds</h2>
   <div class="cards" id="cards"></div>
 
   <footer>
@@ -104,7 +104,7 @@
     const maxLog = Math.max(...rows.map((c) => Math.log10(c.finalitySec + 1)));
     rows.sort((a, b) => a.finalitySec - b.finalitySec);
     $('finChart').innerHTML = rows.map((c) => {
-      const w = Math.max(2, (Math.log10(c.finalitySec + 1) / maxLog) * 100);
+      const w = maxLog > 0 ? Math.max(2, (Math.log10(c.finalitySec + 1) / maxLog) * 100) : 2;
       return '<div class="finrow' + (c.key === 'portaldot' ? ' home' : '') + '">' +
         '<div class="nm">' + esc(NAMES[c.key] || c.name) + '</div>' +
         '<div class="track"><div class="bar" style="width:' + w.toFixed(1) + '%"></div></div>' +
@@ -113,7 +113,7 @@
   }
 
   function metric(k, v, small) {
-    return '<div class="m"><div class="k">' + k + '</div><div class="v">' + v + (small ? ' <small>' + small + '</small>' : '') + '</div></div>';
+    return '<div class="m"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + (small ? ' <small>' + esc(small) + '</small>' : '') + '</div></div>';
   }
 
   function renderCards(chains, substrate) {
@@ -129,20 +129,25 @@
       } else {
         inner += '<div class="grid">' +
           metric('Block height', fmtInt(c.height)) +
-          metric('Block time', c.blockTimeSec == null ? '—' : c.blockTimeSec + 's', 'live-measured') +
+          metric('Block time', c.blockTimeSec == null ? '—' : c.blockTimeSec + 's', c.blockTimeCarried ? 'carried from previous interval' : 'live-measured') +
           metric('Blocks since start', fmtInt(c.blocksSinceStart)) +
           metric('Finality lag', c.finalityNote ? 'n/a' : fmtInt(c.finalityLagBlocks), c.finalityNote ? 'checkpoint-based' : 'blocks') +
           metric('Time to finality', c.finalityNote ? 'n/a' : fmtSec(c.finalitySec)) +
           metric('Gas price', fmtInt(c.gasWei), 'wei') +
           metric('Endpoint reliability', c.reliabilityPct == null ? '—' : c.reliabilityPct + '%', 'of polls') +
           '</div>';
+        if (c.finalitySkew) {
+          inner += '<div class="down">backend skew: finalized head read ahead of the latest head — lag clamped to 0 for this sample</div>';
+        }
         if (home && substrate) {
-          if (substrate.ok) {
-            const agree = c.finalityLagBlocks != null && Math.abs(c.finalityLagBlocks - substrate.lagBlocks) <= 1;
-            inner += '<div class="cross">Substrate cross-check: finalized lag <b>' + fmtInt(substrate.lagBlocks) + ' blocks</b> — ' +
-              (agree ? '<b>agrees</b> with the EVM finalized view' : 'differs from the EVM view this sample') + '</div>';
-          } else {
+          if (!substrate.ok || substrate.lagBlocks == null) {
             inner += '<div class="cross">Substrate cross-check unavailable this sample</div>';
+          } else if (c.finalityLagBlocks == null) {
+            inner += '<div class="cross">Substrate cross-check: finalized lag <b>' + fmtInt(substrate.lagBlocks) + ' blocks</b> — EVM finalized view unavailable this sample</div>';
+          } else if (Math.abs(c.finalityLagBlocks - substrate.lagBlocks) <= 1) {
+            inner += '<div class="cross">Substrate cross-check: finalized lag <b>' + fmtInt(substrate.lagBlocks) + ' blocks</b> — <b>agrees</b> with the EVM finalized view</div>';
+          } else {
+            inner += '<div class="cross">Substrate cross-check: finalized lag <b>' + fmtInt(substrate.lagBlocks) + ' blocks</b> — differs from the EVM view this sample</div>';
           }
         }
       }
@@ -150,14 +155,27 @@
     }).join('');
   }
 
+  let refreshing = false;
   async function refresh() {
+    if (refreshing) return; // no overlapping fetches, no out-of-order renders
+    refreshing = true;
     try {
-      const r = await fetch('/api/status');
+      const r = await fetch('/api/status', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       const s = await r.json();
       const badge = $('liveBadge');
       if (!s.ready || !s.latest) { badge.textContent = 'warming up…'; badge.classList.add('stale'); return; }
-      badge.textContent = 'LIVE · updated ' + new Date(s.latest.ts).toLocaleTimeString();
-      badge.classList.remove('stale');
+      $('samplingHz').textContent = 'Chains — sampled every ' + (s.pollMs / 1000) + ' seconds';
+      // Never claim LIVE over frozen data: if the newest sample is older
+      // than 2.5 poll intervals, the poller has stalled — say so.
+      const age = Date.now() - new Date(s.latest.ts).getTime();
+      if (age > 2.5 * (s.pollMs || 12000)) {
+        badge.textContent = 'STALE · last update ' + new Date(s.latest.ts).toLocaleTimeString();
+        badge.classList.add('stale');
+      } else {
+        badge.textContent = 'LIVE · updated ' + new Date(s.latest.ts).toLocaleTimeString();
+        badge.classList.remove('stale');
+      }
       const w = s.latest.winners || {};
       verdict('vFin', w.fastestFinality, (v) => fmtSec(v).replace('≈', '~'));
       verdict('vBlock', w.fastestBlockTime, (v) => v + 's per block');
@@ -168,6 +186,8 @@
       const badge = $('liveBadge');
       badge.textContent = 'reconnecting…';
       badge.classList.add('stale');
+    } finally {
+      refreshing = false;
     }
   }
   refresh();

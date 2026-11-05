@@ -45,6 +45,7 @@ export function shapeMetrics(sample) {
       finalizedHeight: c.finalizedHeight,
       finalityLagBlocks: c.finalityLagBlocks, finalitySec: c.finalitySec,
       finalitySkew: c.finalitySkew ?? null,
+      chainIdVerified: c.chainIdVerified ?? null,
       gasWei: c.gasWei, reliabilityPct: c.reliabilityPct,
       finalityNote: c.finalityNote || null,
     };

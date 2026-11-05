@@ -6,7 +6,7 @@ Built for Portaldot Hacker House 2026, Multi-Chain & Cross-Chain Infra track. Ze
 
 **Live demo:** (Vercel URL — fill in after deploy) · **Demo video:** (YouTube URL — fill in after upload) · **Pitch deck:** [docs/PITCH-DECK.md](docs/PITCH-DECK.md)
 
-![ChainLens dashboard — live comparison across four testnets](docs/dashboard.png)
+![ChainLens dashboard — live comparison across four testnets](docs/dashboard.webp)
 
 ## Why this exists
 

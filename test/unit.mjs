@@ -56,6 +56,10 @@ assert.equal(nanW.lowestGas.chain, 'second');
 assert.equal(pickWinners({}).fastestFinality, null);
 assert.equal(pickWinners({ x: { ok: true, blockTimeSec: null, finalitySec: null, gasWei: null } }).lowestGas, null);
 
+// B2: an absurdly long (regex-valid) hex quantity must degrade to null,
+// never Infinity — Number(BigInt(h)) overflows for very long strings
+assert.equal(hexToInt('0x' + 'f'.repeat(300)), null);
+
 // shapeMetrics: the /api/metrics document keeps a stable, adoptable shape
 const skel = shapeMetrics(null);
 assert.equal(skel.spec, 'chainlens-metrics/1');

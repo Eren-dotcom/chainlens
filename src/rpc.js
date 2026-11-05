@@ -54,5 +54,6 @@ export async function rpcCall(url, method, params = [], timeoutMs = 6000, attemp
 export const hexToInt = (h) => {
   if (typeof h === 'number') return Number.isFinite(h) ? h : null;
   if (typeof h !== 'string' || !/^0x[0-9a-fA-F]+$/.test(h)) return null;
-  return Number(BigInt(h));
+  const n = Number(BigInt(h));
+  return Number.isFinite(n) ? n : null; // absurdly long hex would give Infinity
 };

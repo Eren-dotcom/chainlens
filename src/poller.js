@@ -27,7 +27,7 @@ async function sampleEvmChain(cfg, prev) {
     key: cfg.key, name: cfg.name, chainId: cfg.chainId, ok: false,
     height: null, blockTimeSec: null, finalizedHeight: null,
     finalityLagBlocks: null, finalitySec: null, gasWei: null, error: null,
-    finalityNote: cfg.finalityNote || null,
+    finalityNote: cfg.finalityNote || null, finalitySkew: false, chainIdVerified: false,
   };
   try {
     // One parallel batch: the finalized head must be read at the same
@@ -49,8 +49,11 @@ async function sampleEvmChain(cfg, prev) {
     // observatory can have. A failed chainId read just skips the check.
     if (chainIdHex != null) {
       const reported = hexToInt(chainIdHex);
-      if (reported != null && reported !== cfg.chainId) {
-        throw new Error(`chain ID mismatch: endpoint reports ${reported}, expected ${cfg.chainId}`);
+      if (reported != null) {
+        out.chainIdVerified = true; // the check ran; consumers can see it ran
+        if (reported !== cfg.chainId) {
+          throw new Error(`chain ID mismatch: endpoint reports ${reported}, expected ${cfg.chainId}`);
+        }
       }
     }
     out._obs = { height: out.height, timestamp: ts };
@@ -143,6 +146,7 @@ export class Poller {
           this.lastBlockTime[r.key] = r.blockTimeSec;
         } else if (this.lastBlockTime[r.key] != null) {
           r.blockTimeSec = this.lastBlockTime[r.key];
+          r.blockTimeCarried = true; // dashboard labels it carried, not live-measured
           r.finalitySec = finalitySeconds(r.finalityLagBlocks, r.blockTimeSec);
         }
       } else {
@@ -154,7 +158,7 @@ export class Poller {
       r.reliabilityPct = st.total ? +((st.ok / st.total) * 100).toFixed(1) : null;
       chains[r.key] = r;
     }
-    if (substrate && substrate.ok && chains.portaldot?.finalityLagBlocks != null) {
+    if (substrate && substrate.ok && substrate.lagBlocks != null && chains.portaldot?.finalityLagBlocks != null) {
       substrate.agrees = Math.abs(chains.portaldot.finalityLagBlocks - substrate.lagBlocks) <= 1;
     }
     const sample = {
