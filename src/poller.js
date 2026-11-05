@@ -245,9 +245,9 @@ export async function sampleChain(key) {
 let raceCache = null; // { at, data }
 export async function raceEndpoints() {
   if (raceCache && Date.now() - raceCache.at < 15000) return raceCache.data;
-  const chains = [];
-  for (const cfg of CHAINS) {
-    const eps = [];
+  // Chains race in parallel: sequentially, nine chains stacked their
+  // latencies (a slow chain delayed every chain behind it).
+  const chains = await Promise.all(CHAINS.map(async (cfg) => {
     const jobs = (cfg.endpoints || [cfg.rpc]).map(async (url) => {
       const t0 = Date.now();
       try {
@@ -259,7 +259,7 @@ export async function raceEndpoints() {
         return { url, height: null, latencyMs: Date.now() - t0, ok: false, error: e.message };
       }
     });
-    eps.push(...(await Promise.all(jobs)));
+    const eps = [...(await Promise.all(jobs))];
     if (cfg.substrateRpc) {
       const t0 = Date.now();
       try {
@@ -274,13 +274,13 @@ export async function raceEndpoints() {
     const okHeights = eps.filter((e) => e.ok && e.height != null).map((e) => e.height);
     const maxH = okHeights.length ? Math.max(...okHeights) : null;
     const minH = okHeights.length ? Math.min(...okHeights) : null;
-    chains.push({
+    return {
       chain: cfg.key,
       endpoints: eps,
       spreadBlocks: okHeights.length >= 2 ? maxH - minH : null,
       staleUrls: maxH != null ? eps.filter((e) => e.ok && e.height != null && maxH - e.height > 5).map((e) => e.url) : [],
-    });
-  }
+    };
+  }));
   const data = { sampledAt: new Date().toISOString(), chains };
   raceCache = { at: Date.now(), data };
   return data;
