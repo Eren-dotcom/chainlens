@@ -48,3 +48,29 @@ Muse's pre-deploy perfection pass (carry-forward, forward-only observation guard
 - **L18 — winner eligibility annotation in the UI.** Eligibility is already inspectable in the API
   (a chain's null metrics show exactly which categories it sat out); a UI annotation added clutter
   without new information. Kept the data honest instead of decorating it.
+
+## Round 2 (2026-11-05, verification pass)
+
+GLM re-reviewed the fixed code (poller, rpc, metrics, dashboard — the last unseen in round 1):
+**12 of 18 confirmed FIXED, 3 PARTIAL, 3 NOT FIXED (the documented declines), plus 9 new Lows**
+(7 dashboard, 2 backend). Source: https://chat.z.ai/c/81b07ef3-f67f-4c78-aace-329a6f5783b0
+
+- **M4 and L17 closed by Muse's own verification** — GLM marked them PARTIAL only because the
+  files live outside its reading set (api/_state.js, src/server.js). Both fixes are present:
+  the memoized warm-up in _state.js (proven live by the 3-way concurrent cold probe in round 1)
+  and the server.js dashboard fallback. No third round needed.
+- **L8 now fully fixed**: `finalitySkew` is in the declared shape on failed samples too, and the
+  dashboard shows a skew notice on the card when it fires.
+- **New findings — 8 of 9 fixed:** B2 (hexToInt could return Infinity on absurd hex — one-line
+  finite guard + unit test), B1 (samples now record `chainIdVerified`, so "checked" vs "skipped"
+  is observable in the API), F1 (dashboard never claims LIVE over stale data — age check at
+  2.5× the poll interval, fetch de-overlapped, no-store), F2 (finality bar width NaN% when every
+  charted finality is 0), F3 (cross-check no longer claims "differs" when a view is simply
+  missing — dashboard and server-side guards), F4 (the "sampled every N seconds" heading is set
+  from the server's real pollMs), F6 (a carried-forward block time is labeled "carried from
+  previous interval", not "live-measured" — poller sets `blockTimeCarried`), F7 (metric()
+  escapes its values like every other render path).
+- **F5 declined, with reason**: GLM's fix guards against a chain key missing from the API
+  payload. Our poller always returns every configured chain (failures come back as ok:false
+  cards), so the case cannot occur against this backend; not coding for a different one.
+- The three standing declines (L14, L16, L18) stand; GLM reviewed the reasoning and concurred.
