@@ -52,5 +52,5 @@ Base makes a block every 0.2 seconds — and still takes 100x longer than Portal
 ## Slide 9 — Links
 - GitHub: https://github.com/Eren-dotcom/chainlens
 - Live demo: https://chainlens-five.vercel.app
-- Demo video: (YouTube URL — fill in after upload)
+- Demo video: https://youtu.be/i1y2EOLO880
 - Run it yourself: npm start (Node ≥ 18, no dependencies to install)
