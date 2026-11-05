@@ -16,7 +16,9 @@ What the live data shows (measured 2026-11-05, re-measured continuously by the d
 - Sepolia's gas price is the lowest of the four.
 - Polygon Amoy finalizes through Heimdall checkpoints rather than the EVM `finalized` tag; ChainLens reports its finality as **n/a** instead of the fake "0 seconds" the tag would imply.
 
-Portaldot's finality is also **cross-checked two ways**: the EVM `finalized` tag and the native Substrate finalized head, shown side by side on the dashboard.
+Portaldot's finality is also **cross-checked two ways**: the EVM `finalized` tag and the native Substrate finalized head, shown side by side on the dashboard. That cross-check is only possible because of Portaldot V3's dual EVM + Substrate architecture — ChainLens puts that V3 feature to work as a verification method, and it is built for the people who need these numbers most: bridge and multi-chain teams verifying finality assumptions before they deploy.
+
+Every metric is defined precisely in [docs/METHODOLOGY.md](docs/METHODOLOGY.md) — the measurement spec is part of the product, written to be reused and audited.
 
 ## What it measures, per chain
 
